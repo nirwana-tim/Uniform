@@ -23,6 +23,7 @@ class DistributionSchedule extends Model
         'start_time',
         'end_time',
         'is_active',
+        'attachments',
         'faculty_id',
         'study_program_id',
         'generation_id',
@@ -35,6 +36,7 @@ class DistributionSchedule extends Model
             'start_time' => 'datetime:H:i',
             'end_time' => 'datetime:H:i',
             'is_active' => 'boolean',
+            'attachments' => 'array',
         ];
     }
 

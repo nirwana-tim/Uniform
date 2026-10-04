@@ -1,74 +1,143 @@
-<x-app-layout>
+<x-student-layout title="Akses Kode QR">
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-top">
+        <div class="header-brand">
+          <img src="{{ asset('assets/img/logo.webp') }}" alt="HorizonU" class="header-logo">
+          <span class="header-brand-title">HorizonU Uniform</span>
+        </div>
+        <a href="{{ route('profile.edit') }}" class="header-profile-btn" title="Profil Akun">
+          <i class="fa-solid fa-user"></i>
+        </a>
+      </div>
 
-    <main class="flex-grow px-container-margin pt-6 pb-32 flex flex-col items-center">
-        {{-- QR Card --}}
-        <div class="w-full max-w-sm bg-white rounded-2xl shadow-card p-8 flex flex-col items-center animate-pop">
-            {{-- Student Info --}}
-            <div class="flex flex-col items-center mb-6">
-                <h2 class="font-headline-sm text-headline-sm text-on-surface max-w-full min-w-0 break-words text-center leading-snug">{{ $student->name }}</h2>
-                <p class="font-body-md text-body-md text-secondary/60 mt-0.5">{{ $student->nim }}</p>
+      <div class="header-divider"></div>
+
+      <h1 class="header-page-title">Akses Kode QR</h1>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="app-content">
+      @if(!$isEligible)
+        <!-- NOT ELIGIBLE STATE (kode-qr-not-eligible.html) -->
+        <div class="qr-card" style="position: relative; overflow: hidden;">
+          <!-- Strike Line (Not Eligible) -->
+          <div class="qr-strike-line"></div>
+
+          <h2 class="qr-user-name">{{ $student->name }}</h2>
+          <p class="qr-user-nim">{{ $student->nim }}</p>
+
+          <div class="qr-box-wrap" style="opacity: 0.5;">
+            <div class="qr-corner tl" style="border-color: var(--border-pink);"></div>
+            <div class="qr-corner tr" style="border-color: var(--border-pink);"></div>
+            <div class="qr-corner bl" style="border-color: var(--border-pink);"></div>
+            <div class="qr-corner br" style="border-color: var(--border-pink);"></div>
+
+            <div class="qr-inner-white">
+              <div style="width: 140px; height: 140px; background-color: #E5E7EB; border-radius: 8px;"></div>
+            </div>
+          </div>
+
+          <button disabled class="btn-download-qr disabled" style="opacity: 0.5; cursor: not-allowed;">
+            <i class="fa-solid fa-download"></i>
+            <span>Download Kode QR</span>
+          </button>
+
+          <p class="qr-instruction" style="color: var(--danger); font-weight: 500;">
+            Anda belum eligible untuk mengambil seragam saat ini. Silakan hubungi bagian keuangan/administrasi kampus.
+          </p>
+        </div>
+      @elseif($activeSchedules->isEmpty() && !$activeEvent)
+        <!-- EMPTY STATE (kode-qr-empty.html) -->
+        <div class="empty-state-wrap">
+          <img src="{{ asset('assets/img/ukuran-empty-illustration.webp') }}" alt="Belum Ada Jadwal" class="empty-illustration">
+          <p class="empty-title">Belum Ada Jadwal Pengambilan</p>
+          <p class="empty-desc">Saat ini belum ada jadwal pengambilan seragam yang aktif untuk Anda.</p>
+        </div>
+      @else
+        <!-- ACTIVE QR (kode-qr.html) -->
+        <div class="desktop-split-grid">
+          <!-- QR CARD -->
+          <div class="qr-card">
+            <h2 class="qr-user-name">{{ $student->name }}</h2>
+            <p class="qr-user-nim">{{ $student->nim }}</p>
+
+            <div class="qr-box-wrap">
+              <div class="qr-corner tl"></div>
+              <div class="qr-corner tr"></div>
+              <div class="qr-corner bl"></div>
+              <div class="qr-corner br"></div>
+
+              <div class="qr-inner-white">
+                <img src="{{ $qrDataUrl }}" class="qr-image" alt="QR Code {{ $student->nim }}">
+              </div>
             </div>
 
-            {{-- QR Code --}}
-            <div class="w-full aspect-square bg-surface-container-low rounded-xl flex items-center justify-center relative mb-6 p-6 border border-black/[0.04]">
-                <div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-primary"></div>
-                <div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-primary"></div>
-                <div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-primary"></div>
-                <div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-primary"></div>
-                <div class="w-full h-full bg-white rounded-xl flex items-center justify-center shadow-sm">
-                    <img src="{{ $qrDataUrl }}" alt="QR {{ $student->nim }}" class="w-full h-full object-contain p-2">
-                </div>
-            </div>
-
-            {{-- Download Button --}}
-            <a href="{{ $qrDataUrl }}"
-               download="qr-{{ $student->nim }}.png"
-               class="w-full h-14 bg-primary text-white rounded-full font-headline-sm text-headline-sm flex items-center justify-center gap-2 shadow-button active:scale-[0.98] transition-transform duration-200">
-                <span class="material-symbols-outlined">download</span>
-                Download QR PNG
+            <a href="{{ $qrDataUrl }}" download="qr-{{ $student->nim }}.png" class="btn-download-qr" style="text-decoration: none;">
+              <i class="fa-solid fa-download"></i>
+              <span>Download Kode QR</span>
             </a>
 
-            {{-- Info --}}
-            <p class="mt-6 font-body-md text-body-md text-secondary/60 text-center leading-relaxed px-2">
-                Tunjukkan QR ini pada petugas saat pengambilan paket untuk verifikasi identitas Anda.
+            <p class="qr-instruction">
+              Tunjukkan QR ini pada petugas di tempat pada saat pengambilan seragam, untuk verifikasi identitas Anda.
             </p>
-        </div>
+          </div>
 
-        {{-- Status Cards --}}
-        <div class="mt-6 grid grid-cols-2 gap-4 w-full max-w-sm">
-            <div class="bg-white shadow-soft rounded-xl p-4">
-                <span class="font-label-md text-label-md text-secondary/60 uppercase">Status</span>
-                <p class="font-headline-sm text-headline-sm text-on-surface mt-1">Aktif</p>
+          <!-- RIGHT SIDE: JADWAL & STATUS -->
+          <div class="desktop-split-side">
+            <!-- SECTION TITLE -->
+            <div class="section-header">
+              <h2 class="section-title">Jadwal Ukuran &amp; Pembagian</h2>
+              <span class="section-badge">Terbaru</span>
             </div>
-            <div class="bg-white shadow-soft rounded-xl p-4">
-                <span class="font-label-md text-label-md text-secondary/60 uppercase">Valid Hingga</span>
-                <p class="font-headline-sm text-headline-sm text-on-surface mt-1">{{ now()->year }}</p>
-            </div>
-        </div>
 
-        {{-- Jadwal Distribusi Aktif --}}
-        @if(isset($activeSchedules) && $activeSchedules->count())
-        <div class="mt-6 w-full max-w-sm">
-            <h3 class="font-headline-sm text-headline-sm text-on-background mb-3">Jadwal Distribusi</h3>
-            <div class="bg-white shadow-card rounded-2xl overflow-hidden">
-                @foreach($activeSchedules as $schedule)
-                <div class="flex items-center px-5 py-4 {{ !$loop->last ? 'divider-subtle' : '' }} active:bg-black/[0.02] transition-colors cursor-pointer">
-                    <div class="w-12 h-12 rounded-xl bg-primary/5 flex flex-col items-center justify-center mr-4 shrink-0">
-                        <span class="text-[10px] font-bold text-primary uppercase">{{ \Carbon\Carbon::parse($schedule->date)->format('M') }}</span>
-                        <span class="text-lg font-extrabold text-primary leading-tight">{{ \Carbon\Carbon::parse($schedule->date)->format('d') }}</span>
+            <!-- CARDS GRID -->
+            <div class="cards-grid">
+              @if($activeEvent)
+                <!-- CARD 1 -->
+                <div class="card">
+                  <div class="card-header-bar">
+                    <span>Periode:</span>
+                    <span>{{ $activeEvent->start_date->format('d M') }} - {{ $activeEvent->end_date->format('d M Y') }}</span>
+                  </div>
+                  <div class="card-body">
+                    <p class="card-category">Edit Ukuran Seragam</p>
+                    <p class="card-headline">{{ $activeEvent->title ?: 'Segera edit ukuran sebelum masa periode habis!' }}</p>
+                    <div class="card-footer">
+                      <span class="card-info-item">Selesai <b>{{ $completedSizeCount }}/2</b></span>
+                      <a href="{{ route('student.sizes.index') }}" class="btn-cta" style="text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
+                        Lihat Ukuran
+                      </a>
                     </div>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="font-headline-sm text-[15px] text-on-background">{{ $schedule->name }}</h4>
-                        <p class="font-body-md text-[13px] text-secondary/60 mt-0.5">{{ $schedule->location }}</p>
-                        @if($schedule->start_time && $schedule->end_time)
-                            <p class="font-body-md text-[12px] text-secondary/50 mt-1">Waktu: {{ $schedule->start_time->format('H:i') }} - {{ $schedule->end_time->format('H:i') }}</p>
-                        @endif
-                    </div>
-                    <span class="material-symbols-outlined text-primary shrink-0">chevron_right</span>
+                  </div>
                 </div>
-                @endforeach
+              @endif
+
+              @foreach($activeSchedules as $schedule)
+                <!-- SCHEDULE CARD -->
+                <div class="card">
+                  <div class="card-header-bar">
+                    <span>Tanggal:</span>
+                    <span>{{ \Carbon\Carbon::parse($schedule->date)->translatedFormat('d F Y') }}</span>
+                  </div>
+                  <div class="card-body">
+                    <p class="card-category">Jadwal Pengambilan Seragam</p>
+                    <p class="card-headline">{{ $schedule->name }}</p>
+                    <div class="card-footer">
+                      <span class="card-info-item">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <span>{{ $schedule->location ?: 'Faculty Lounge' }}</span>
+                      </span>
+                      <a href="{{ route('student.schedules.detail', $schedule->id) }}" class="btn-outline-cta" style="text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
+                        Lihat Detail
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              @endforeach
             </div>
+          </div>
         </div>
-        @endif
+      @endif
     </main>
-</x-app-layout>
+</x-student-layout>

@@ -7,14 +7,35 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
+        './resources/js/**/*.js',
+        './public/assets/js/**/*.js',
     ],
 
     theme: {
         extend: {
             fontFamily: {
                 sans: ['Inter', ...defaultTheme.fontFamily.sans],
+                display: ['"Optima"', 'Georgia', 'serif'],
             },
             colors: {
+                brand: {
+                    red: '#980517',
+                    darkRed: '#7A0412',
+                    darkerRed: '#350208',
+                    pinkLight: '#FDF2F3',
+                    pinkSoft: '#F0DADC',
+                    pinkBorder: '#DFB2B7',
+                    pinkTint: '#F5E6E8',
+                    gold: '#D4A83A',
+                    goldHover: '#B8902E',
+                    goldLight: '#FCF7EB',
+                    grayBg: '#F8F9FA',
+                    cardBg: '#F5F5F5',
+                    darkCardBorder: '#4A4A4A',
+                    dark: '#171717',
+                    muted: '#8E8D8D',
+                    subtleBorder: '#E4E4E7',
+                },
                 primary: {
                     DEFAULT: '#980416',
                     50:  '#fdf2f3',

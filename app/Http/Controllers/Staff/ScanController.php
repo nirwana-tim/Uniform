@@ -184,7 +184,6 @@ class ScanController extends Controller
 
         $entitlement = null;
         $scheduleItems = collect();
-        $studentSizes = [];
         $variantOptions = [];
         $eligibility = null;
 

@@ -16,6 +16,7 @@ use App\Models\Student;
 use App\Models\StudentSizeHistory;
 use App\Models\StudentSizeItem;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DistributionService
@@ -99,6 +100,10 @@ class DistributionService
 
             if (! $schedule->is_active) {
                 throw new \Exception('Jadwal distribusi sudah tidak aktif. Silakan hubungi admin.');
+            }
+
+            if ($schedule->date && Carbon::parse($schedule->date)->isFuture()) {
+                throw new \Exception('Jadwal distribusi "'.$schedule->name.'" belum dimulai.');
             }
 
             $isApplicable = DistributionSchedule::whereKey($schedule->id)

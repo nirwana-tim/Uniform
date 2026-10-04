@@ -1,76 +1,168 @@
-<x-app-layout>
-    @php
-        $user = auth()->user();
-        $student = $user->student ?? null;
-    @endphp
+@if($student)
+  <x-student-layout title="Profil Akun" :showNav="false">
+    <!-- HERO COVER & HEADER -->
+    <div class="profile-hero">
+      <img src="{{ asset('assets/img/profile-header.webp') }}" alt="Profile Cover" class="profile-hero-img">
+      <div class="profile-hero-top">
+        <a href="{{ route('dashboard') }}" class="btn-back" title="Kembali ke Beranda">
+          <i class="fa-solid fa-arrow-left"></i>
+        </a>
+        <h1 class="header-back-title">Profil Akun</h1>
+      </div>
+    </div>
 
-    <main class="flex-grow px-container-margin pt-8 pb-32">
-        {{-- Avatar + Name --}}
-        <section class="flex flex-col items-center mb-8 text-center">
-            <div class="w-24 h-24 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-bold mb-5 shadow-xl border-4 border-white ring-1 ring-black/[0.04]">
-                {{ substr($user->name, 0, 2) }}
+    <!-- AVATAR -->
+    <div class="profile-avatar-wrap">
+      <i class="fa-solid fa-user"></i>
+    </div>
+
+    <!-- NAME & NIM -->
+    <div class="profile-name-sec">
+      <h2 class="profile-name">{{ $student->name }}</h2>
+      <p class="profile-nim">{{ $student->nim }}</p>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <main class="app-content">
+      <div class="profile-dashboard-grid">
+        <!-- SECTION 1: INFORMASI MAHASISWA -->
+        <div class="profile-col">
+          <div class="section-header">
+            <h3 class="section-title">Informasi Mahasiswa</h3>
+          </div>
+
+          <div class="info-card">
+            <!-- Faculty -->
+            <div class="info-row">
+              <i class="fa-solid fa-building info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Faculty</p>
+                <p class="info-row-val">{{ $student->studyProgram?->faculty?->name ?? 'Faculty of Information and Computer Technology' }}</p>
+              </div>
             </div>
-            <h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-1 max-w-full min-w-0 break-words">{{ $user->name }}</h1>
-            <p class="font-body-lg text-body-lg text-secondary/60">NIM: {{ $student->nim ?? '-' }}</p>
-        </section>
 
-        {{-- Info Card --}}
-        <section class="bg-white rounded-2xl p-5 mb-6 shadow-card">
-            <div class="space-y-4">
-                <div class="flex justify-between items-start gap-3 pb-3 divider-subtle">
-                    <span class="font-label-md text-label-md text-secondary/60 uppercase tracking-wider shrink-0">Program Studi</span>
-                    <span class="font-body-md text-body-md text-on-surface font-semibold text-right min-w-0 break-words">{{ $student->studyProgram?->name ?? '-' }}</span>
-                </div>
-                <div class="flex justify-between items-start gap-3 pb-3 divider-subtle">
-                    <span class="font-label-md text-label-md text-secondary/60 uppercase tracking-wider shrink-0">Fakultas</span>
-                    <span class="font-body-md text-body-md text-on-surface font-semibold text-right min-w-0 break-words">{{ $student->studyProgram?->faculty?->name ?? '-' }}</span>
-                </div>
-                <div class="flex justify-between items-start gap-3">
-                    <span class="font-label-md text-label-md text-secondary/60 uppercase tracking-wider shrink-0">Email</span>
-                    <span class="font-body-md text-body-md text-on-surface font-semibold text-right min-w-0 break-all">{{ $user->email }}</span>
-                </div>
+            <div class="info-row-divider"></div>
+
+            <!-- Study Program -->
+            <div class="info-row">
+              <i class="fa-solid fa-book-open info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Studi Program</p>
+                <p class="info-row-val">{{ $student->studyProgram?->name ?? '-' }}</p>
+              </div>
             </div>
-        </section>
 
-        {{-- Action Buttons --}}
-        <section class="flex flex-col gap-4">
-            <button type="button"
-                    class="w-full h-14 rounded-full border-2 border-primary text-primary font-semibold text-body-lg flex items-center justify-center gap-2 active:scale-[0.98] transition-colors duration-200 hover:bg-primary/5"
-                    data-modal="change-password">
-                <span class="material-symbols-outlined">lock_reset</span>
-                Ubah Password
-            </button>
-            <button type="button"
-                    class="w-full h-14 rounded-full bg-primary text-white font-semibold text-body-lg flex items-center justify-center gap-2 shadow-button active:scale-[0.98] transition-transform duration-200"
-                    data-modal="verify-email">
-                <span class="material-symbols-outlined">verified_user</span>
-                Kelola Email
-            </button>
-        </section>
+            <div class="info-row-divider"></div>
 
-        {{-- Inline Forms (hidden, toggle via modal) --}}
-        <div id="modal-password" class="hidden fixed inset-0 bg-black/30 z-[100] items-end justify-center" onclick="if(event.target===this)this.style.display='none'">
-            <div class="bg-white rounded-t-2xl w-full max-w-lg p-6 pt-3 pb-8 max-h-[85vh] overflow-y-auto">
-                <div class="w-10 h-1 bg-black/20 rounded-full mx-auto mb-4"></div>
-                <h3 class="font-headline-sm text-headline-sm text-on-surface mb-5">Ubah Password</h3>
-                @include('profile.partials.update-password-form')
-                <button type="button" onclick="document.getElementById('modal-password').style.display='none'"
-                        class="mt-4 w-full h-12 rounded-full border-2 border-secondary/20 text-secondary/60 font-headline-sm text-headline-sm active:scale-[0.98] transition-transform duration-200">
-                    Tutup
-                </button>
+            <!-- Batch -->
+            <div class="info-row">
+              <i class="fa-solid fa-users info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Batch</p>
+                <p class="info-row-val">{{ $student->generation?->name ?? $student->generation?->code ?? 'SY 24-25' }}</p>
+              </div>
             </div>
+          </div>
         </div>
 
-        <div id="modal-profile" class="hidden fixed inset-0 bg-black/30 z-[100] items-end justify-center" onclick="if(event.target===this)this.style.display='none'">
-            <div class="bg-white rounded-t-2xl w-full max-w-lg p-6 pt-3 pb-8 max-h-[85vh] overflow-y-auto">
-                <div class="w-10 h-1 bg-black/20 rounded-full mx-auto mb-4"></div>
-                <h3 class="font-headline-sm text-headline-sm text-on-surface mb-5">Edit Profil</h3>
-                @include('profile.partials.update-profile-information-form')
-                <button type="button" onclick="document.getElementById('modal-profile').style.display='none'"
-                        class="mt-4 w-full h-12 rounded-full border-2 border-secondary/20 text-secondary/60 font-headline-sm text-headline-sm active:scale-[0.98] transition-transform duration-200">
-                    Tutup
-                </button>
+        <!-- SECTION 2: PENGATURAN AKUN -->
+        <div class="profile-col">
+          <div class="section-header">
+            <h3 class="section-title">Pengaturan Akun</h3>
+          </div>
+
+          <div class="info-card">
+            <!-- Email Universitas -->
+            <div class="info-row">
+              <i class="fa-regular fa-envelope info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Email Universitas</p>
+                <p class="info-row-val">{{ $student->email_kampus ?: $user->email }}</p>
+              </div>
             </div>
+
+            <div class="info-row-divider"></div>
+
+            <!-- Email Pribadi -->
+            <a href="{{ route('profile.email.change') }}" class="info-row" style="cursor: pointer; text-decoration: none;" title="Klik untuk ubah email pribadi">
+              <i class="fa-regular fa-envelope info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Email Pribadi</p>
+                <p class="info-row-val">{{ $student->email_pribadi ?: 'Belum diatur' }}</p>
+              </div>
+              <i class="fa-solid fa-chevron-right info-row-chevron"></i>
+            </a>
+
+            <div class="info-row-divider"></div>
+
+            <!-- Password -->
+            <a href="{{ route('password.change') }}" class="info-row" style="cursor: pointer; text-decoration: none;" title="Klik untuk ubah password">
+              <i class="fa-solid fa-lock info-row-icon"></i>
+              <div class="info-row-content">
+                <p class="info-row-label">Password</p>
+                <p class="info-row-val">Ubah password Anda</p>
+              </div>
+              <i class="fa-solid fa-chevron-right info-row-chevron"></i>
+            </a>
+
+            <div class="info-row-divider"></div>
+
+            <!-- Logout -->
+            <form id="logoutForm" action="{{ route('logout') }}" method="POST" style="display: none;">
+              @csrf
+            </form>
+            <div onclick="confirmStudentLogout()" class="info-row cursor-pointer" style="cursor: pointer;" title="Keluar dari akun">
+              <i class="fa-solid fa-arrow-right-from-bracket info-row-icon" style="color: var(--danger);"></i>
+              <div class="info-row-content">
+                <p class="info-row-val" style="color: var(--danger);">Logout</p>
+                <p class="info-row-label" style="color: var(--danger);">Keluar dari akun</p>
+              </div>
+              <i class="fa-solid fa-chevron-right info-row-chevron" style="color: var(--danger);"></i>
+            </div>
+          </div>
         </div>
+      </div>
     </main>
-</x-app-layout>
+
+    @push('scripts')
+    <script>
+      function confirmStudentLogout() {
+        showAppModal({
+          title: 'Keluar dari Akun?',
+          message: 'Apakah Anda yakin ingin keluar dari akun HorizonU Uniform? Anda harus login kembali untuk mengakses data seragam Anda.',
+          type: 'danger',
+          cancelText: 'Batal',
+          confirmText: 'Ya, Logout',
+          onConfirm: () => {
+            document.getElementById('logoutForm').submit();
+          }
+        });
+      }
+    </script>
+    @endpush
+  </x-student-layout>
+@else
+  <x-app-layout>
+    <x-slot name="header">
+      <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+        {{ __('Profile') }}
+      </h2>
+    </x-slot>
+
+    <div class="py-12">
+      <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+        <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+          <div class="max-w-xl">
+            @include('profile.partials.update-profile-information-form')
+          </div>
+        </div>
+
+        <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+          <div class="max-w-xl">
+            @include('profile.partials.update-password-form')
+          </div>
+        </div>
+      </div>
+    </div>
+  </x-app-layout>
+@endif

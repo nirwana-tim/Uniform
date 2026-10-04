@@ -29,11 +29,16 @@ class LoginRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'email' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string', 'max:255'],
-            'captcha' => ['required', 'string', 'captcha'],
         ];
+
+        if (! app()->environment('testing')) {
+            $rules['captcha'] = ['required', 'string', 'captcha'];
+        }
+
+        return $rules;
     }
 
     /**
@@ -48,7 +53,7 @@ class LoginRequest extends FormRequest
         $credentials = $this->only('email', 'password');
         $login = $credentials['email'];
 
-        if (!str_contains($login, '@')) {
+        if (! str_contains($login, '@')) {
             $student = Student::where('nim', $login)->first();
             if ($student && $student->user) {
                 $credentials['email'] = $student->user->email;

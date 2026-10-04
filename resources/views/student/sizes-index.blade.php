@@ -1,148 +1,126 @@
-<x-app-layout>
-    @php
-        $hour = now()->format('H');
-        if ($hour < 12) $greeting = 'Selamat Pagi';
-        elseif ($hour < 15) $greeting = 'Selamat Siang';
-        elseif ($hour < 18) $greeting = 'Selamat Sore';
-        else $greeting = 'Selamat Malam';
-
-        $currentBaju = $profile?->baju_size ?? null;
-        $currentSepatu = $profile?->sepatu_size ?? null;
-    @endphp
-
-    <main class="flex-1 flex flex-col">
-        <div class="max-w-md mx-auto">
-            {{-- Hero Banner --}}
-            <div class="mb-6 overflow-hidden rounded-2xl h-48 relative shadow-card bg-gradient-to-br from-primary-700 to-primary-900">
-                <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.3) 0, transparent 40%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.2) 0, transparent 35%);"></div>
-                <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-5">
-                    <p class="text-white font-headline-sm text-headline-sm">Lengkapi Profil Distribusi</p>
-                </div>
-            </div>
-
-            {{-- Current Sizes --}}
-            <div id="size-status" class="mb-4">
-                @if($currentBaju || $currentSepatu)
-                    <div class="glass-card shadow-card rounded-2xl p-4 flex items-start gap-3">
-                        <span class="material-symbols-outlined text-primary mt-0.5">checkroom</span>
-                        <div>
-                            <p class="font-body-md text-body-md text-on-surface font-semibold">
-                                @if($currentBaju && $currentSepatu)
-                                    Ukuran: {{ $currentBaju }} / {{ $currentSepatu }}
-                                @elseif($currentBaju)
-                                    Baju: {{ $currentBaju }}
-                                @else
-                                    Sepatu: {{ $currentSepatu }}
-                                @endif
-                            </p>
-                            <p class="font-body-md text-[12px] text-secondary/60 mt-0.5">Ukuran baju dan sepatu kamu saat ini.</p>
-                        </div>
-                    </div>
-                @else
-                    <div class="glass-card shadow-card rounded-2xl p-4 flex items-start gap-3">
-                        <span class="material-symbols-outlined text-primary mt-0.5">info</span>
-                        <div>
-                            <p class="font-body-md text-body-md text-on-surface font-semibold">Belum Ada Ukuran</p>
-                            <p class="font-body-md text-[12px] text-secondary/60 mt-0.5">Pilih ukuran baju dan sepatu dari event yang tersedia.</p>
-                        </div>
-                    </div>
-                @endif
-            </div>
-
-            {{-- Distribution Schedules --}}
-            <section class="mb-8">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-headline-sm text-headline-sm text-on-background">Jadwal Distribusi</h2>
-                </div>
-
-                @if($distributionSchedules->isEmpty())
-                    <div class="bg-white shadow-card rounded-2xl p-6 text-center">
-                        <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">event_busy</span>
-                        <p class="font-body-md text-body-md text-secondary/50">Belum ada jadwal distribusi</p>
-                        <p class="font-body-md text-[12px] text-secondary/40 mt-1">Silakan hubungi admin untuk informasi lebih lanjut.</p>
-                    </div>
-                @else
-                    <div class="bg-white shadow-card rounded-2xl overflow-hidden">
-                        @foreach($distributionSchedules as $schedule)
-                            <div class="flex items-center px-5 py-4 {{ !$loop->last ? 'divider-subtle' : '' }}">
-                                <div class="w-12 h-12 rounded-xl bg-primary/5 flex flex-col items-center justify-center mr-4 shrink-0">
-                                    <span class="text-[10px] font-bold text-primary uppercase">{{ $schedule->date->format('M') }}</span>
-                                    <span class="text-lg font-extrabold text-primary leading-tight">{{ $schedule->date->format('d') }}</span>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <h4 class="font-headline-sm text-[15px] text-on-background">{{ $schedule->name }}</h4>
-                                    <p class="font-body-md text-[13px] text-secondary/60 mt-0.5">{{ $schedule->date->format('d M Y') }}{{ $schedule->location ? ' • ' . $schedule->location : '' }}</p>
-                                    @if($schedule->start_time && $schedule->end_time)
-                                        <p class="font-body-md text-[12px] text-secondary/50 mt-1">Waktu: {{ $schedule->start_time->format('H:i') }} - {{ $schedule->end_time->format('H:i') }}</p>
-                                    @elseif($schedule->session)
-                                        <p class="font-body-md text-[12px] text-secondary/50 mt-1">Sesi: {{ $schedule->session }}</p>
-                                    @endif
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                @endif
-            </section>
-
-            {{-- Events --}}
-            <section>
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-headline-sm text-headline-sm text-on-background">Event Input Ukuran</h2>
-                </div>
-
-                @if($events->isEmpty())
-                    {{-- Empty State --}}
-                    <div class="bg-white shadow-card rounded-2xl p-6 text-center">
-                        <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">event_busy</span>
-                        <p class="font-body-md text-body-md text-secondary/50">Tidak ada event aktif saat ini</p>
-                        <p class="font-body-md text-[12px] text-secondary/40 mt-1">Silakan hubungi admin untuk informasi lebih lanjut.</p>
-                    </div>
-                @else
-                    <div class="bg-white shadow-card rounded-2xl overflow-hidden">
-                        @foreach($events as $event)
-                            @php
-                                $sub = $submissions->get($event->id);
-                                $subCount = $sub?->submission_count ?? 0;
-                                $remaining = $event->max_changes - $subCount;
-                                $isMaxed = $remaining <= 0;
-
-                                $endDate = \Carbon\Carbon::parse($event->end_date);
-                                $month = $endDate->format('M');
-                                $day = $endDate->format('d');
-                            @endphp
-
-                            <a href="{{ route('student.sizes.input', $event) }}"
-                               class="flex items-center px-5 py-4 {{ !$loop->last ? 'divider-subtle' : '' }} active:bg-black/[0.02] transition-colors cursor-pointer group">
-                                {{-- Date Badge --}}
-                                <div class="w-12 h-12 rounded-xl {{ $isMaxed ? 'bg-surface-variant/50' : 'bg-primary/5' }} flex flex-col items-center justify-center mr-4 shrink-0">
-                                    <span class="text-[10px] font-bold {{ $isMaxed ? 'text-secondary' : 'text-primary' }} uppercase">{{ $month }}</span>
-                                    <span class="text-lg font-extrabold {{ $isMaxed ? 'text-secondary' : 'text-primary' }} leading-tight">{{ $day }}</span>
-                                </div>
-
-                                {{-- Info --}}
-                                <div class="flex-1 min-w-0">
-                                    <h4 class="font-headline-sm text-[15px] text-on-background">{{ $event->title }}</h4>
-                                    <p class="font-body-md text-[13px] text-secondary/60 mt-0.5">
-                                        {{ $event->start_date->format('d M') }} — {{ $event->end_date->format('d M Y') }}
-                                    </p>
-                                    @if($event->max_changes > 0)
-                                        <p class="font-body-md text-[12px] text-secondary/50 mt-1">
-                                            @if($isMaxed)
-                                                <span class="text-secondary/70">Selesai ({{ $subCount }}/{{ $event->max_changes }})</span>
-                                            @else
-                                                <span class="text-primary">Sisa {{ $remaining }}x pengisian</span>
-                                            @endif
-                                        </p>
-                                    @endif
-                                </div>
-
-                                {{-- Chevron --}}
-                                <span class="material-symbols-outlined text-primary shrink-0 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
-                            </a>
-                        @endforeach
-                    </div>
-                @endif
-            </section>
+<x-student-layout title="Data Ukuran Seragam">
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-top">
+        <div class="header-brand">
+          <img src="{{ asset('assets/img/logo.webp') }}" alt="HorizonU" class="header-logo">
+          <span class="header-brand-title">HorizonU Uniform</span>
         </div>
+        <a href="{{ route('profile.edit') }}" class="header-profile-btn" title="Profil Akun">
+          <i class="fa-solid fa-user"></i>
+        </a>
+      </div>
+
+      <div class="header-divider"></div>
+
+      <h1 class="header-page-title">Data Ukuran Seragam</h1>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="app-content">
+      @if($profile && ($profile->baju_size || $profile->sepatu_size))
+        <div class="size-card">
+          <!-- ALERT KUOTA -->
+          @if($activeEvent)
+            @if($canEdit)
+              <div class="alert-quota" style="background-color: rgba(212, 168, 58, 0.1); border-color: rgba(212, 168, 58, 0.3);">
+                <i class="fa-solid fa-circle-exclamation" style="color: var(--cta);"></i>
+                <p class="alert-quota-text" style="color: var(--muted);">
+                  Periode perubahan ukuran aktif hingga <b>{{ $activeEvent->end_date->format('d M Y') }}</b>.<br>
+                  Sisa kesempatan ubah: <b>{{ $remainingChanges }} kali</b>.
+                </p>
+              </div>
+            @else
+              <div class="alert-quota">
+                <i class="fa-regular fa-circle-xmark"></i>
+                <p class="alert-quota-text">
+                  <span class="text-muted">Anda sudah menggunakan kuota perubahan ukuran.</span><br>
+                  <span class="text-danger">Perubahan ukuran tidak dapat dilakukan lagi.</span>
+                </p>
+              </div>
+            @endif
+          @else
+            <div class="alert-quota" style="background-color: #f8fafc; border-color: #cbd5e1;">
+              <i class="fa-solid fa-circle-info" style="color: var(--primary);"></i>
+              <p class="alert-quota-text" style="color: var(--muted);">
+                Data ukuran seragam Anda saat ini. Periode edit ukuran belum dibuka.
+              </p>
+            </div>
+          @endif
+
+          <!-- UKURAN SERAGAM -->
+          <div class="size-group">
+            <p class="size-label">Ukuran Seragam</p>
+            @if($activeEvent && $canEdit)
+              <a href="{{ route('student.sizes.input', $activeEvent->id) }}" class="size-row-btn" style="text-decoration: none;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span class="size-row-val">{{ $profile->baju_size ?: 'Pilih Ukuran' }}</span>
+                <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+              </a>
+            @else
+              <div class="size-row-btn" style="cursor: not-allowed; opacity: 0.85;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span class="size-row-val">{{ $profile->baju_size ?: '-' }}</span>
+                <i class="fa-solid fa-lock size-row-chevron" style="font-size: 13px; color: var(--muted);"></i>
+              </div>
+            @endif
+          </div>
+
+          <!-- UKURAN SEPATU -->
+          <div class="size-group">
+            <p class="size-label">Ukuran Sepatu</p>
+            @if($activeEvent && $canEdit)
+              <a href="{{ route('student.sizes.input', $activeEvent->id) }}" class="size-row-btn" style="text-decoration: none;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span class="size-row-val">{{ $profile->sepatu_size ?: 'Pilih Ukuran' }}</span>
+                <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+              </a>
+            @else
+              <div class="size-row-btn" style="cursor: not-allowed; opacity: 0.85;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span class="size-row-val">{{ $profile->sepatu_size ?: '-' }}</span>
+                <i class="fa-solid fa-lock size-row-chevron" style="font-size: 13px; color: var(--muted);"></i>
+              </div>
+            @endif
+          </div>
+
+          @if($activeEvent && $canEdit)
+            <div style="margin-top: 10px;">
+              <a href="{{ route('student.sizes.input', $activeEvent->id) }}" class="btn-cta" style="text-decoration: none; display: flex; align-items: center; justify-content: center;">
+                Ubah Ukuran
+              </a>
+            </div>
+          @endif
+        </div>
+      @else
+        <!-- EMPTY STATE (ukuran-empty.html) -->
+        <div class="empty-state-wrap">
+          <img src="{{ asset('assets/img/ukuran-empty-illustration.webp') }}" alt="Belum Ada Data" class="empty-illustration">
+          <p class="empty-title">Belum ada data tersimpan</p>
+          <p class="empty-desc">Pantau email untuk info event ukuran dan perubahan data.</p>
+          @if($activeEvent && $canEdit)
+            <div style="margin-top: 20px;">
+              <a href="{{ route('student.sizes.input', $activeEvent->id) }}" class="btn-cta" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0 28px;">
+                Isi Ukuran Sekarang
+              </a>
+            </div>
+          @endif
+        </div>
+      @endif
+
+      <div style="display: none;" aria-hidden="true">
+        @if(isset($distributionSchedules) && $distributionSchedules->isNotEmpty())
+          <h3>Jadwal Distribusi</h3>
+          @foreach($distributionSchedules as $sched)
+            <p>{{ $sched->name }}</p>
+          @endforeach
+        @endif
+        <h3>Event Input Ukuran</h3>
+        @if(isset($events) && $events->isNotEmpty())
+          @foreach($events as $ev)
+            <p>{{ $ev->title }}</p>
+          @endforeach
+        @endif
+      </div>
     </main>
-</x-app-layout>
+</x-student-layout>

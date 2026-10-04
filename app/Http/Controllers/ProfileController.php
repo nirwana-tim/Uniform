@@ -20,7 +20,9 @@ class ProfileController extends Controller
     {
         $student = null;
         if ($request->user()->hasRole(Role::Student->value)) {
-            $student = Student::where('user_id', $request->user()->id)->first();
+            $student = Student::where('user_id', $request->user()->id)
+                ->with(['studyProgram.faculty', 'generation'])
+                ->first();
         }
 
         return view('profile.edit', [

@@ -1,124 +1,139 @@
-<x-app-layout>
-    <main class="px-container-margin pt-6 pb-8">
-        <header class="mb-7">
-            <h1 id="greeting" class="font-headline-lg-mobile text-headline-lg-mobile text-on-background"></h1>
-            <p class="font-body-md text-secondary/70 mt-0.5">{{ $student->nim }} &bull; {{ $student->studyProgram?->name ?? '-' }}</p>
-        </header>
+<x-student-layout title="Home">
+    <!-- HEADER -->
+    <header class="app-header app-header-home">
+      <div class="header-brand">
+        <img src="{{ asset('assets/img/logo.webp') }}" alt="HorizonU" class="header-logo">
+        <span class="header-brand-title">HorizonU Uniform</span>
+      </div>
 
-        <section id="email-card" class="mb-7"></section>
+      <div class="header-divider"></div>
 
-        <div class="space-y-7">
-            <section id="jadwal-distribusi">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-headline-sm text-headline-sm text-on-background">Jadwal Distribusi</h2>
-                </div>
-
-                @if($distributionSchedules->isNotEmpty())
-                    <div class="bg-white shadow-card rounded-2xl overflow-hidden">
-                        @foreach($distributionSchedules as $schedule)
-                            @php
-                                $date = $schedule->date;
-                                $month = $date->format('M');
-                                $day = $date->format('d');
-                                $isOdd = $loop->iteration % 2 === 1;
-                            @endphp
-
-                            <div class="flex items-center px-5 py-4 {{ !$loop->last ? 'divider-subtle' : '' }} active:bg-black/[0.02] transition-colors cursor-pointer group"
-                                 data-modal="dist-{{ $loop->iteration }}"
-                                 data-event-title="{{ $schedule->name }}"
-                                 data-event-start="{{ $date->format('d M Y') }}"
-                                 data-event-end=""
-                                 data-event-location="{{ $schedule->location ?? '' }}"
-                                 data-event-note="{{ $schedule->session ?? '' }}">
-                                <div class="w-12 h-12 rounded-xl {{ $isOdd ? 'bg-primary/5' : 'bg-surface-variant/50' }} flex flex-col items-center justify-center mr-4 shrink-0">
-                                    <span class="text-[10px] font-bold {{ $isOdd ? 'text-primary' : 'text-secondary' }} uppercase">{{ $month }}</span>
-                                    <span class="text-lg font-extrabold {{ $isOdd ? 'text-primary' : 'text-secondary' }} leading-tight">{{ $day }}</span>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <h4 class="font-headline-sm text-[15px] text-on-background">{{ $schedule->name }}</h4>
-                                    <p class="font-body-md text-[13px] text-secondary/60 mt-0.5">{{ $date->format('d M Y') }}{{ $schedule->location ? ' • ' . $schedule->location : '' }}</p>
-                                    @if($schedule->start_time && $schedule->end_time)
-                                        <p class="font-body-md text-[12px] text-secondary/50 mt-1">Waktu: {{ $schedule->start_time->format('H:i') }} - {{ $schedule->end_time->format('H:i') }}</p>
-                                    @elseif($schedule->session)
-                                        <p class="font-body-md text-[12px] text-secondary/50 mt-1">Sesi: {{ $schedule->session }}</p>
-                                    @endif
-                                </div>
-                                <span class="material-symbols-outlined text-primary shrink-0 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="bg-white shadow-card rounded-2xl p-6 text-center">
-                        <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">event_busy</span>
-                        <p class="font-body-md text-body-md text-secondary/50">Belum ada jadwal distribusi</p>
-                        <p class="font-body-md text-[12px] text-secondary/40 mt-1">Silakan hubungi admin untuk informasi lebih lanjut.</p>
-                    </div>
-                @endif
-            </section>
-
-            <section id="event-ukuran">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="font-headline-sm text-headline-sm text-on-background">Event Input Ukuran</h2>
-                </div>
-
-                @if($sizeEvents->isNotEmpty())
-                    <div class="bg-white shadow-card rounded-2xl overflow-hidden">
-                        @foreach($sizeEvents as $event)
-                            @php
-                                $endDate = \Carbon\Carbon::parse($event->end_date);
-                                $month = $endDate->format('M');
-                                $day = $endDate->format('d');
-                                $isOdd = $loop->iteration % 2 === 1;
-                            @endphp
-
-                            <div class="flex items-center px-5 py-4 {{ !$loop->last ? 'divider-subtle' : '' }} active:bg-black/[0.02] transition-colors cursor-pointer group"
-                                 data-modal="schedule-{{ $loop->iteration }}"
-                                 data-event-title="{{ $event->title }}"
-                                 data-event-start="{{ $event->start_date->format('d M Y') }}"
-                                 data-event-end="{{ $event->end_date->format('d M Y') }}"
-                                 data-event-location="{{ $event->description ?? '' }}"
-                                 data-event-note="">
-                                <div class="w-12 h-12 rounded-xl {{ $isOdd ? 'bg-primary/5' : 'bg-surface-variant/50' }} flex flex-col items-center justify-center mr-4 shrink-0">
-                                    <span class="text-[10px] font-bold {{ $isOdd ? 'text-primary' : 'text-secondary' }} uppercase">{{ $month }}</span>
-                                    <span class="text-lg font-extrabold {{ $isOdd ? 'text-primary' : 'text-secondary' }} leading-tight">{{ $day }}</span>
-                                </div>
-                                <div class="flex-1 min-w-0">
-                                    <h4 class="font-headline-sm text-[15px] text-on-background">{{ $event->title }}</h4>
-                                    <p class="font-body-md text-[13px] text-secondary/60 mt-0.5">{{ $event->description ?? $event->start_date->format('d M') . ' — ' . $event->end_date->format('d M Y') }}</p>
-                                </div>
-                                <span class="material-symbols-outlined text-primary shrink-0 group-hover:translate-x-0.5 transition-transform">chevron_right</span>
-                            </div>
-                        @endforeach
-                    </div>
-                @else
-                    <div class="bg-white shadow-card rounded-2xl p-6 text-center">
-                        <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">checkroom</span>
-                        <p class="font-body-md text-body-md text-secondary/50">Belum ada event input ukuran</p>
-                        <p class="font-body-md text-[12px] text-secondary/40 mt-1">Silakan hubungi admin untuk informasi lebih lanjut.</p>
-                    </div>
-                @endif
-            </section>
+      <div class="header-user-group">
+        <div class="header-greeting-wrap">
+          <h1 onclick="window.location.href='{{ route('profile.edit') }}'" class="header-greeting-title" style="cursor: pointer;">
+            Hi, {{ $student->name }}
+          </h1>
+          <div class="header-greeting-sub">
+            <span onclick="window.location.href='{{ route('profile.edit') }}'" style="cursor: pointer;">
+              {{ $student->studyProgram?->name ?? 'Mahasiswa' }}-<span id="nimText" class="nim-visible">{{ $student->nim }}</span>
+            </span>
+            <button type="button" id="toggleNimBtn" onclick="toggleNimVisibility(event)" class="nim-toggle-btn" title="Sembunyikan NIM">
+              <i id="eyeNimIcon" class="fa-regular fa-eye"></i>
+            </button>
+          </div>
         </div>
+        <a href="{{ route('profile.edit') }}" class="header-profile-btn" title="Profil Akun">
+          <i class="fa-solid fa-user"></i>
+        </a>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="app-content">
+      @if($activeEvent || $activeSchedule)
+        <!-- SECTION TITLE -->
+        <div class="section-header">
+          <h2 class="section-title">Jadwal Ukuran &amp; Pembagian</h2>
+          <span class="section-badge">Terbaru</span>
+        </div>
+
+        <!-- CARDS GRID -->
+        <div class="cards-grid">
+          @if($activeEvent)
+            <!-- CARD 1: EVENT UKURAN -->
+            <div class="card">
+              <div class="card-header-bar">
+                <span>Periode:</span>
+                <span>{{ $activeEvent->start_date->format('d M') }} - {{ $activeEvent->end_date->format('d M Y') }}</span>
+              </div>
+              <div class="card-body">
+                <p class="card-category">Edit Ukuran Seragam</p>
+                <p class="card-headline">{{ $activeEvent->title ?: 'Segera edit ukuran sebelum masa periode habis!' }}</p>
+                <div class="card-footer">
+                  <span class="card-info-item">Selesai <b>{{ $completedSizeCount }}/2</b></span>
+                  @if($canEdit)
+                    <a href="{{ route('student.sizes.input', $activeEvent->id) }}" class="btn-cta" style="text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
+                      Edit Ukuran
+                    </a>
+                  @else
+                    <a href="{{ route('student.sizes.index') }}" class="btn-cta" style="text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center; background: #64748b;">
+                      Lihat Ukuran
+                    </a>
+                  @endif
+                </div>
+              </div>
+            </div>
+          @endif
+
+          @if($activeSchedule)
+            <!-- CARD 2: JADWAL PENGAMBILAN -->
+            <div class="card">
+              <div class="card-header-bar">
+                <span>Tanggal:</span>
+                <span>{{ \Carbon\Carbon::parse($activeSchedule->date)->format('d F Y') }}</span>
+              </div>
+              <div class="card-body">
+                <p class="card-category">Jadwal Pengambilan Seragam <span style="display:none;">Jadwal Distribusi</span></p>
+                <p class="card-headline">{{ $activeSchedule->name }}</p>
+                <div class="card-footer">
+                  <span class="card-info-item">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <span>{{ $activeSchedule->location ?: 'Faculty Lounge' }}</span>
+                  </span>
+                  <a href="{{ route('student.schedules.detail', $activeSchedule->id) }}" class="btn-outline-cta" style="text-decoration: none; text-align: center; display: inline-flex; align-items: center; justify-content: center;">
+                    Lihat Detail
+                  </a>
+                </div>
+              </div>
+            </div>
+          @endif
+        </div>
+      @else
+        <!-- EMPTY STATE (home-empty.html) -->
+        <div class="empty-state-wrap">
+          <img src="{{ asset('assets/img/ukuran-empty-illustration.webp') }}" alt="Belum Ada Jadwal" class="empty-illustration">
+          <p class="empty-title">Belum Ada Jadwal Tersedia</p>
+          <p class="empty-desc">Saat ini belum ada jadwal pemilihan ukuran maupun jadwal pengambilan seragam yang aktif untuk Anda. <span style="display:none;">Belum ada jadwal distribusi</span></p>
+        </div>
+      @endif
     </main>
 
     @push('scripts')
     <script>
-        (function() {
-            var hour = new Date().getHours();
-            var greeting;
-            if (hour >= 3 && hour < 12) {
-                greeting = 'Selamat Pagi';
-            } else if (hour >= 12 && hour < 15) {
-                greeting = 'Selamat Siang';
-            } else if (hour >= 15 && hour < 21) {
-                greeting = 'Selamat Sore';
-            } else {
-                greeting = 'Selamat Malam';
-            }
-            var fullName = @json($student->name);
-            var firstName = fullName.trim().split(/\s+/)[0];
-            document.getElementById('greeting').textContent = greeting + ', ' + firstName + '!';
-        })();
+      const rawNim = '{{ $student->nim }}';
+
+      function setNimHidden(hide) {
+        const nimEl = document.getElementById('nimText');
+        const icon = document.getElementById('eyeNimIcon');
+        const btn = document.getElementById('toggleNimBtn');
+        if (!nimEl || !icon) return;
+
+        if (hide) {
+          nimEl.textContent = '***';
+          nimEl.className = 'nim-masked';
+          icon.classList.remove('fa-eye');
+          icon.classList.add('fa-eye-slash');
+          if (btn) btn.title = 'Tampilkan NIM';
+          localStorage.setItem('hideNim', 'true');
+        } else {
+          nimEl.textContent = rawNim;
+          nimEl.className = 'nim-visible';
+          icon.classList.remove('fa-eye-slash');
+          icon.classList.add('fa-eye');
+          if (btn) btn.title = 'Sembunyikan NIM';
+          localStorage.setItem('hideNim', 'false');
+        }
+      }
+
+      function toggleNimVisibility(event) {
+        if (event) event.stopPropagation();
+        const isHidden = localStorage.getItem('hideNim') === 'true';
+        setNimHidden(!isHidden);
+      }
+
+      if (localStorage.getItem('hideNim') === 'true') {
+        setNimHidden(true);
+      }
     </script>
     @endpush
-</x-app-layout>
+</x-student-layout>

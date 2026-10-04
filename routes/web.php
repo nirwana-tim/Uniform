@@ -175,6 +175,7 @@ Route::middleware(['auth', 'password.changed', 'role:student'])->prefix('student
     Route::post('/email/send-otp', [EmailVerificationOtpController::class, 'sendOtp'])->middleware('throttle:3,1')->name('email.send-otp');
     Route::get('/email/verify', [EmailVerificationOtpController::class, 'showVerifyForm'])->name('email.verify-form');
     Route::post('/email/verify-otp', [EmailVerificationOtpController::class, 'verifyOtp'])->middleware('throttle:5,1')->name('email.verify-otp');
+    Route::get('/schedules/{schedule}', [SizeController::class, 'scheduleDetail'])->name('schedules.detail');
     Route::get('/qr', [SizeController::class, 'qr'])->name('qr');
     Route::get('/items', [SizeController::class, 'items'])->name('items.index');
 });

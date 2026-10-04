@@ -72,10 +72,29 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('event_id');
 
-        $distributionSchedules = DistributionSchedule::upcomingForStudent($student)->get();
+        $activeEvent = $sizeEvents->first();
+        $submission = $activeEvent ? $submissions->get($activeEvent->id) : null;
+        $canEdit = $activeEvent ? $activeEvent->canEdit($student) : false;
+
+        $distributionSchedules = DistributionSchedule::with(['faculty', 'generation', 'items.item'])
+            ->upcomingForStudent($student)
+            ->get();
+
+        $activeSchedule = $distributionSchedules->first();
 
         $profile = $student->activeSizeProfile;
 
-        return view('dashboards.student', compact('student', 'sizeEvents', 'submissions', 'distributionSchedules', 'profile'));
+        $completedSizeCount = 0;
+        if ($profile?->baju_size) {
+            $completedSizeCount++;
+        }
+        if ($profile?->sepatu_size) {
+            $completedSizeCount++;
+        }
+
+        return view('dashboards.student', compact(
+            'student', 'sizeEvents', 'activeEvent', 'submissions', 'submission',
+            'canEdit', 'distributionSchedules', 'activeSchedule', 'profile', 'completedSizeCount'
+        ));
     }
 }

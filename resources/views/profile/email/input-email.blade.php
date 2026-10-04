@@ -1,24 +1,46 @@
-<x-app-layout>
-    <div class="mb-5">
-        <h2 class="text-lg font-bold text-gray-800">Ubah Email Pribadi</h2>
-        <p class="text-xs text-gray-500 mt-0.5">Masukkan alamat email pribadi baru</p>
-    </div>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ubah Alamat Email - HorizonU Uniform</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  @vite(['resources/css/app.css', 'resources/css/student.css', 'resources/js/app.js'])
+</head>
+<body class="modal-page-body">
+  <div id="screen" class="modal-dialog-card">
+    <div onclick="window.location.href='{{ route('profile.edit') }}'" class="sheet-handle" title="Kembali ke Profil" style="cursor: pointer;"></div>
 
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-        <form method="POST" action="{{ route('profile.email.send-otp') }}" class="space-y-4">
-            @csrf
+    <a href="{{ route('profile.email.change') }}" class="btn-back" style="width: 38px; height: 38px; margin-bottom: 16px; text-decoration: none;" title="Kembali">
+      <i class="fa-solid fa-arrow-left"></i>
+    </a>
 
-            <div>
-                <x-input-label for="email_pribadi" :value="__('Email Pribadi Baru')" />
-                <p class="text-xs text-gray-500 mb-1">Kode OTP akan dikirim ke email ini untuk verifikasi.</p>
-                <x-text-input id="email_pribadi" name="email_pribadi" type="email" class="mt-1 block w-full" :value="old('email_pribadi')" required autocomplete="email" placeholder="nama@example.com" />
-                <x-input-error class="mt-2" :messages="$errors->get('email_pribadi')" />
-            </div>
+    <h1 style="font-size: 22px; font-weight: 600; margin-bottom: 8px;">Ubah Alamat Email</h1>
+    <p style="color: var(--muted); font-size: 14px; line-height: 1.4; margin-bottom: 24px;">
+      Masukkan alamat email baru untuk mengirimkan Kode OTP.
+    </p>
 
-            <div class="flex items-center gap-3">
-                <x-primary-button>Kirim OTP</x-primary-button>
-                <a href="{{ route('profile.edit') }}" class="text-sm text-gray-600 hover:text-gray-900">Batal</a>
-            </div>
-        </form>
-    </div>
-</x-app-layout>
+    @if ($errors->any())
+      <div style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 16px;">
+        <ul style="margin: 0; padding-left: 18px;">
+          @foreach ($errors->all() as $error)
+            <li>{{ $error }}</li>
+          @endforeach
+        </ul>
+      </div>
+    @endif
+
+    <form method="POST" action="{{ route('profile.email.send-otp') }}">
+      @csrf
+      <div class="form-input-pill" style="margin-bottom: 24px;">
+        <i class="fa-regular fa-envelope"></i>
+        <input name="email_pribadi" type="email" required placeholder="example@gmail.com" value="{{ old('email_pribadi') }}">
+      </div>
+
+      <button type="submit" class="btn-cta" style="width: 100%; height: 52px; font-size: 15px; border: none; cursor: pointer;">
+        Kirim OTP
+      </button>
+    </form>
+  </div>
+</body>
+</html>

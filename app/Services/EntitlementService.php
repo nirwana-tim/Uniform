@@ -14,6 +14,21 @@ class EntitlementService
     {
         $targetLevel = $schedule?->student_level ?? $student->student_level;
 
+        if ($student->entitlement_code) {
+            $entitlement = Entitlement::where('code', $student->entitlement_code)
+                ->where('is_active', true)
+                ->where(function ($q) use ($targetLevel) {
+                    $q->where('student_level', $targetLevel)
+                        ->orWhereNull('student_level');
+                })
+                ->with('items.item')
+                ->first();
+
+            if ($entitlement) {
+                return $entitlement;
+            }
+        }
+
         $facultyCode = $student->studyProgram?->faculty?->code ?? '';
         $prodiCode = $student->studyProgram?->code ?? '';
         $entitlementCode = $targetLevel.$facultyCode.$prodiCode;

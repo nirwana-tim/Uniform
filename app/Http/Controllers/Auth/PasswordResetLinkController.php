@@ -26,6 +26,10 @@ class PasswordResetLinkController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        if ($request->filled('email') && ! $request->has('login')) {
+            $request->merge(['login' => $request->input('email')]);
+        }
+
         $validated = $request->validate([
             'login' => ['required', 'string', 'max:255'],
         ]);

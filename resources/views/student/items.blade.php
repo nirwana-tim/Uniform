@@ -1,111 +1,131 @@
-<x-app-layout>
+<x-student-layout title="Status Seragam">
     @php
-        $pendingItems = $entitlementItems->filter(fn($item) => !in_array($item->id, $receivedItemIds));
-        $receivedCount = $receivedTransactions->sum(fn($tx) => $tx->items->count());
+      $receivedCount = $receivedTransactions->sum(fn($tx) => $tx->items->count());
+      $pendingCount = $pendingItems->count();
+      $activeTab = request()->input('tab', 'pending');
     @endphp
 
-    <main class="min-h-screen pb-8">
-        {{-- Tabs --}}
-        <nav class="flex w-full bg-white/90 backdrop-blur-sm sticky top-16 z-40 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
-            <button type="button"
-                    class="flex-1 relative py-4 text-center font-label-md text-label-md transition-colors duration-150 active:scale-95 {{ request()->input('tab', 'pending') === 'pending' ? 'text-primary' : 'text-black/30' }}"
-                    onclick="document.getElementById('tab-pending').style.display='';document.getElementById('tab-received').style.display='none';this.classList.add('text-primary');this.classList.remove('text-black/30');this.nextElementSibling.classList.add('text-black/30');this.nextElementSibling.classList.remove('text-primary');">
-                Pending
-                @if(request()->input('tab', 'pending') === 'pending')
-                    <div class="active-tab-indicator"></div>
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="header-top">
+        <div class="header-brand">
+          <img src="{{ asset('assets/img/logo.webp') }}" alt="HorizonU" class="header-logo">
+          <span class="header-brand-title">HorizonU Uniform</span>
+        </div>
+        <a href="{{ route('profile.edit') }}" class="header-profile-btn" title="Profil Akun">
+          <i class="fa-solid fa-user"></i>
+        </a>
+      </div>
+
+      <div class="header-divider"></div>
+
+      <h1 class="header-page-title">Status Seragam</h1>
+    </header>
+
+    <!-- CONTENT -->
+    <main class="app-content">
+      <!-- TABS -->
+      <div class="status-tabs">
+        <button type="button" onclick="switchStatusTab('pending')" id="btnTabPending" class="status-tab-btn {{ $activeTab === 'pending' ? 'active' : '' }}">
+          <span>Belum diterima ({{ $pendingCount }})</span>
+          <div class="status-tab-indicator"></div>
+        </button>
+        <button type="button" onclick="switchStatusTab('received')" id="btnTabReceived" class="status-tab-btn {{ $activeTab === 'received' ? 'active' : '' }}">
+          <span>Diterima ({{ $receivedCount }})</span>
+          <div class="status-tab-indicator"></div>
+        </button>
+      </div>
+
+      <!-- TAB PENDING CONTENT -->
+      <div id="tabPendingContent" class="status-list" style="{{ $activeTab === 'pending' ? '' : 'display: none;' }}">
+        @forelse($pendingItems as $item)
+          @php
+            $itemName = $item->name;
+            $isShoes = stripos($itemName, 'sepatu') !== false || ($item->category?->code ?? '') === 'SHO';
+          @endphp
+          <div class="status-item">
+            <div class="status-item-icon">
+              @if($isShoes)
+                <i class="fa-solid fa-shoe-prints"></i>
+              @else
+                <i class="fa-solid fa-shirt"></i>
+              @endif
+            </div>
+            <div class="status-item-info">
+              <h3 class="status-item-title">{{ $item->name }}</h3>
+              <span class="status-item-sub-danger">Keterangan: Perlu diambil</span>
+            </div>
+          </div>
+        @empty
+          <!-- EMPTY STATE (status-belum-diterima-empty.html) -->
+          <div class="empty-state-wrap">
+            <img src="{{ asset('assets/img/ukuran-empty-illustration.webp') }}" alt="Semua Diambil" class="empty-illustration">
+            <p class="empty-title">Tidak ada seragam pending</p>
+            <p class="empty-desc">Semua paket seragam yang menjadi hak Anda sudah berhasil diambil.</p>
+          </div>
+        @endforelse
+      </div>
+
+      <!-- TAB RECEIVED CONTENT -->
+      <div id="tabReceivedContent" class="status-list" style="{{ $activeTab === 'received' ? '' : 'display: none;' }}">
+        @php $hasReceived = false; @endphp
+        @foreach($receivedTransactions as $tx)
+          @foreach($tx->items as $txItem)
+            @php
+              $hasReceived = true;
+              $itemName = $txItem->item?->name ?? 'Item Seragam';
+              $isShoes = stripos($itemName, 'sepatu') !== false || ($txItem->item?->category?->code ?? '') === 'SHO';
+              $pickupDate = $tx->pickup_time ?: $tx->created_at;
+            @endphp
+            <div class="status-item">
+              <div class="status-item-icon">
+                @if($isShoes)
+                  <i class="fa-solid fa-shoe-prints"></i>
+                @else
+                  <i class="fa-solid fa-shirt"></i>
                 @endif
-            </button>
-            <button type="button"
-                    class="flex-1 relative py-4 text-center font-label-md text-label-md transition-colors duration-150 active:scale-95 {{ request()->input('tab') === 'received' ? 'text-primary' : 'text-black/30' }}"
-                    onclick="document.getElementById('tab-received').style.display='';document.getElementById('tab-pending').style.display='none';this.classList.add('text-primary');this.classList.remove('text-black/30');this.previousElementSibling.classList.add('text-black/30');this.previousElementSibling.classList.remove('text-primary');">
-                Received
-                @if(request()->input('tab') === 'received')
-                    <div class="active-tab-indicator"></div>
-                @endif
-            </button>
-        </nav>
+              </div>
+              <div class="status-item-info">
+                <h3 class="status-item-title">{{ $itemName }}</h3>
+                <span class="status-item-sub-success">
+                  Sudah diambil - {{ \Carbon\Carbon::parse($pickupDate)->translatedFormat('d F Y') }}
+                </span>
+              </div>
+            </div>
+          @endforeach
+        @endforeach
 
-        {{-- Counter --}}
-        <div class="px-container-margin pt-4 flex justify-between items-center">
-            <span class="text-secondary/50 font-label-md text-label-md" id="items-counter">{{ $pendingItems->count() }} ITEMS PENDING</span>
-        </div>
-
-        {{-- Pending List --}}
-        <div id="tab-pending" class="px-container-margin mt-4 space-y-4" style="{{ request()->input('tab') !== 'received' ? '' : 'display:none' }}">
-            @if($pendingItems->isNotEmpty())
-                @foreach($pendingItems as $item)
-                    <div class="bg-white rounded-2xl p-5 shadow-card flex items-center justify-between active:scale-[0.99] transition-transform duration-200 cursor-pointer"
-                         data-modal="barang:{{ $item->id }}"
-                         data-item-id="{{ $item->id }}"
-                         data-item-name="{{ $item->name }}"
-                         data-item-size="{{ is_array($selectedSizes[$item->id] ?? null) ? ($selectedSizes[$item->id]['size'] ?? '') : ($selectedSizes[$item->id] ?? '') }}"
-                         data-item-status="pending">
-                    <div class="flex items-center gap-4">
-                        <div class="w-14 h-14 rounded-xl bg-primary/5 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-primary text-2xl" style="font-variation-settings: 'FILL' 1;">checkroom</span>
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <h3 class="font-headline-sm text-[15px] text-on-surface">{{ $item->name }}</h3>
-                            @if(isset($selectedSizes[$item->id]) && !empty($selectedSizes[$item->id]))
-                                <div class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-variant/40 w-fit">
-                                    <span class="text-[10px] font-semibold text-secondary uppercase tracking-wider">Ukuran {{ is_array($selectedSizes[$item->id]) ? ($selectedSizes[$item->id]['size'] ?? '-') : $selectedSizes[$item->id] }}</span>
-                                </div>
-                            @else
-                                <span class="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Ukuran belum dipilih</span>
-                            @endif
-                        </div>
-                    </div>
-                    <div class="flex flex-col items-end gap-1">
-                        <span class="font-semibold font-label-md text-label-md text-primary">Pending</span>
-                        <span class="text-[10px] text-secondary/50">ID: #{{ $item->id }}</span>
-                    </div>
-                </div>
-                @endforeach
-            @else
-                <div class="bg-white rounded-2xl p-8 text-center">
-                    <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">inventory_2</span>
-                    <p class="font-body-md text-body-md text-secondary/50">Tidak ada barang pending</p>
-                </div>
-            @endif
-        </div>
-
-        {{-- Received List --}}
-        <div id="tab-received" class="px-container-margin mt-4 space-y-4" style="{{ request()->input('tab') === 'received' ? '' : 'display:none' }}">
-            @if($receivedTransactions->isNotEmpty())
-                @foreach($receivedTransactions as $tx)
-                    @foreach($tx->items as $item)
-                <div class="bg-white rounded-2xl p-5 shadow-card flex items-center justify-between active:scale-[0.99] transition-transform duration-200 cursor-pointer"
-                     data-modal="barang:{{ $item->id }}"
-                     data-item-id="{{ $item->id }}"
-                     data-item-name="{{ $item->item?->name ?? 'Item' }}"
-                     data-item-size="{{ is_array($selectedSizes[$item->id] ?? null) ? ($selectedSizes[$item->id]['size'] ?? '') : ($selectedSizes[$item->id] ?? '') }}"
-                     data-item-status="received">
-                        <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-xl bg-emerald-50 flex items-center justify-center">
-                                <span class="material-symbols-outlined text-emerald-600 text-2xl" style="font-variation-settings: 'FILL' 1;">checkroom</span>
-                            </div>
-                            <div class="flex flex-col gap-1.5">
-                                <h3 class="font-headline-sm text-[15px] text-on-surface">{{ $item->item?->name ?? 'Item' }}</h3>
-                                @if($item->actual_size)
-                                    <div class="inline-flex items-center px-2.5 py-1 rounded-full bg-surface-variant/40 w-fit">
-                                        <span class="text-[10px] font-semibold text-secondary uppercase tracking-wider">Ukuran {{ $item->actual_size }}</span>
-                                    </div>
-                                @endif
-                            </div>
-                        </div>
-                        <div class="flex flex-col items-end gap-1">
-                            <span class="font-semibold font-label-md text-label-md text-emerald-600">Received</span>
-                            <span class="text-[10px] text-secondary/50">{{ $item->quantity }} pcs</span>
-                        </div>
-                    </div>
-                    @endforeach
-                @endforeach
-            @else
-                <div class="bg-white rounded-2xl p-8 text-center">
-                    <span class="material-symbols-outlined text-4xl text-secondary/30 mb-3">inventory_2</span>
-                    <p class="font-body-md text-body-md text-secondary/50">Tidak ada barang yang sudah diterima</p>
-                </div>
-            @endif
-        </div>
+        @if(!$hasReceived)
+          <!-- EMPTY STATE (status-diterima-empty.html) -->
+          <div class="empty-state-wrap">
+            <img src="{{ asset('assets/img/ukuran-empty-illustration.webp') }}" alt="Belum Diambil" class="empty-illustration">
+            <p class="empty-title">Belum ada seragam yang diambil</p>
+            <p class="empty-desc">Silakan kunjungi lokasi pembagian sesuai jadwal yang ditentukan untuk mengambil seragam Anda.</p>
+          </div>
+        @endif
+      </div>
     </main>
-</x-app-layout>
+
+    @push('scripts')
+    <script>
+      function switchStatusTab(tab) {
+        const btnPending = document.getElementById('btnTabPending');
+        const btnReceived = document.getElementById('btnTabReceived');
+        const contentPending = document.getElementById('tabPendingContent');
+        const contentReceived = document.getElementById('tabReceivedContent');
+
+        if (tab === 'pending') {
+          btnPending.classList.add('active');
+          btnReceived.classList.remove('active');
+          contentPending.style.display = '';
+          contentReceived.style.display = 'none';
+        } else {
+          btnReceived.classList.add('active');
+          btnPending.classList.remove('active');
+          contentReceived.style.display = '';
+          contentPending.style.display = 'none';
+        }
+      }
+    </script>
+    @endpush
+</x-student-layout>

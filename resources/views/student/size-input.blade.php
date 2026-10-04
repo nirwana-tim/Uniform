@@ -1,164 +1,192 @@
-<x-app-layout>
-    @php
-        $currentBaju = $currentSizes['baju'] ?? null;
-        $currentSepatu = $currentSizes['sepatu'] ?? null;
-    @endphp
+<x-student-layout title="Edit Ukuran Seragam" :showNav="false">
+    <!-- HEADER -->
+    <header class="app-header-back">
+      <a href="{{ route('student.sizes.index') }}" class="btn-back" title="Kembali">
+        <i class="fa-solid fa-arrow-left"></i>
+      </a>
+      <h1 class="header-back-title">Edit Ukuran Seragam</h1>
+    </header>
 
-    {{-- Hero Banner --}}
-    <div class="mb-6 overflow-hidden rounded-2xl h-48 relative shadow-card bg-gradient-to-br from-primary-700 to-primary-900">
-        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.3) 0, transparent 40%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.2) 0, transparent 35%);"></div>
-        <div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-5">
-            <p class="text-white font-headline-sm text-headline-sm">Lengkapi Profil Distribusi</p>
+    <!-- CONTENT -->
+    <main class="app-content">
+      @if($canEdit)
+        <form id="sizeForm" action="{{ route('student.sizes.store') }}" method="POST">
+          @csrf
+          <input type="hidden" name="event_id" value="{{ $event->id }}">
+          <input type="hidden" name="sizes[baju]" id="inputUniformVal" value="{{ old('sizes.baju', $currentSizes['baju'] ?? 'XL') }}">
+          <input type="hidden" name="sizes[sepatu]" id="inputShoeVal" value="{{ old('sizes.sepatu', $currentSizes['sepatu'] ?? '38') }}">
+
+          <div class="size-card">
+            <!-- ALERT INFO -->
+            @if(empty($sizeOptions['baju']) && empty($sizeOptions['sepatu']))
+              <div class="alert-quota" style="background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3);">
+                <i class="fa-solid fa-circle-exclamation" style="color: #ef4444;"></i>
+                <p class="alert-quota-text" style="color: #ef4444;">Ukuran belum diatur oleh admin.</p>
+              </div>
+            @else
+              <div class="alert-quota" style="background-color: rgba(212, 168, 58, 0.1); border-color: rgba(212, 168, 58, 0.3);">
+                <i class="fa-solid fa-circle-exclamation" style="color: var(--cta);"></i>
+                <p class="alert-quota-text" style="color: var(--muted);">
+                  Anda hanya dapat mengubah ukuran saat periode dan batas max tersedia. Pastikan data ukuran yang dimasukkan sudah sesuai.<br>
+                  Sisa kesempatan perubahan: <b>{{ $remainingChanges }} kali</b>.
+                </p>
+              </div>
+            @endif
+
+            <!-- UKURAN SERAGAM -->
+            <div class="size-group">
+              <p class="size-label">Ukuran Seragam <span style="display:none;">Ukuran Baju</span></p>
+              <div onclick="openSizePicker('uniform')" class="size-row-btn" title="Klik untuk memilih ukuran seragam" style="cursor: pointer;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span id="selectedUniformVal" class="size-row-val">{{ old('sizes.baju', $currentSizes['baju'] ?? 'XL') }}</span>
+                <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+              </div>
+            </div>
+
+            <!-- UKURAN SEPATU -->
+            <div class="size-group">
+              <p class="size-label">Ukuran Sepatu</p>
+              <div onclick="openSizePicker('shoes')" class="size-row-btn" title="Klik untuk memilih ukuran sepatu" style="cursor: pointer;">
+                <span class="size-row-label">Ukuran dipilih</span>
+                <span id="selectedShoeVal" class="size-row-val">{{ old('sizes.sepatu', $currentSizes['sepatu'] ?? '38') }}</span>
+                <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTION BUTTON -->
+          <button type="button" onclick="confirmSizeChange()" class="btn-submit-action" {{ (empty($sizeOptions['baju']) && empty($sizeOptions['sepatu'])) ? 'disabled' : '' }}>
+            Konfirmasi Perubahan
+          </button>
+        </form>
+      @else
+        <!-- DISABLED STATE (edit-ukuran-disable.html) -->
+        <div class="size-card">
+          <!-- ALERT KUOTA -->
+          <div class="alert-quota">
+            <i class="fa-regular fa-circle-xmark"></i>
+            <p class="alert-quota-text">
+              <span class="text-muted">Anda sudah menggunakan kuota perubahan ukuran.</span><br>
+              <span class="text-danger">Perubahan ukuran tidak dapat dilakukan lagi.</span>
+            </p>
+          </div>
+
+          <!-- UKURAN SERAGAM -->
+          <div class="size-group">
+            <p class="size-label">Ukuran Seragam <span style="display:none;">Ukuran Baju</span></p>
+            <div class="size-row-btn" style="cursor: not-allowed; opacity: 0.8;">
+              <span class="size-row-label">Ukuran dipilih</span>
+              <span class="size-row-val">{{ $currentSizes['baju'] ?: '-' }}</span>
+              <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+            </div>
+          </div>
+
+          <!-- UKURAN SEPATU -->
+          <div class="size-group">
+            <p class="size-label">Ukuran Sepatu</p>
+            <div class="size-row-btn" style="cursor: not-allowed; opacity: 0.8;">
+              <span class="size-row-label">Ukuran dipilih</span>
+              <span class="size-row-val">{{ $currentSizes['sepatu'] ?: '-' }}</span>
+              <i class="fa-solid fa-chevron-right size-row-chevron"></i>
+            </div>
+          </div>
         </div>
+
+        <!-- ACTION BUTTON (DISABLED) -->
+        <button disabled class="btn-submit-action disabled" style="opacity: 0.5; cursor: not-allowed;">
+          Konfirmasi Perubahan
+        </button>
+      @endif
+    </main>
+
+    <!-- MODAL BACKDROP -->
+    <div id="sizePickerBackdrop" onclick="closeSizePicker()" class="modal-backdrop"></div>
+
+    <!-- BOTTOM SHEET / MODAL PICKER -->
+    <div id="sizePickerSheet" class="modal-bottom-sheet">
+      <button type="button" onclick="closeSizePicker()" class="modal-close-btn" title="Tutup Modal">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <div onclick="closeSizePicker()" class="sheet-handle" title="Tutup Modal"></div>
+
+      <div class="modal-step-body">
+        <h2 id="sizePickerTitle" class="modal-step-title">Pilih Ukuran</h2>
+        <p id="sizePickerDesc" class="modal-step-desc">Pilih salah satu ukuran yang tersedia di bawah ini.</p>
+
+        <div id="sizeChipsContainer" class="size-chips-grid">
+          <!-- Dynamic chips generated in JS -->
+        </div>
+      </div>
     </div>
 
-    {{-- Status Banner --}}
-    <div id="size-status" class="mb-4">
-        @if(!$canEdit)
-            <div class="glass-card shadow-card rounded-2xl p-4 flex items-start gap-3">
-                <span class="material-symbols-outlined text-primary mt-0.5">block</span>
-                <div>
-                    <p class="font-body-md text-body-md text-on-surface font-semibold">Kuota Perubahan Habis</p>
-                    <p class="font-body-md text-[12px] text-secondary/60 mt-0.5">Kamu sudah memakai {{ $event->max_changes }}x perubahan pada event ini.</p>
-                </div>
-            </div>
-        @else
-            <div class="glass-card shadow-card rounded-2xl p-4 flex items-start gap-3">
-                <span class="material-symbols-outlined text-primary mt-0.5">straighten</span>
-                <div>
-                    <p class="font-body-md text-body-md text-on-surface font-semibold">Sisa Perubahan: {{ $remainingChanges }} dari {{ $event->max_changes }}</p>
-                    <p class="font-body-md text-[12px] text-secondary/60 mt-0.5">Acara: {{ $event->title }} &bull; s/d {{ $event->end_date->format('d M Y') }}</p>
-                </div>
-            </div>
-        @endif
-    </div>
-
-    {{-- Size Fields --}}
-    <form action="{{ route('student.sizes.store') }}" method="POST" id="size-form">
-        @csrf
-        <input type="hidden" name="event_id" value="{{ $event->id }}">
-        <input type="hidden" name="sizes[baju]" id="input-baju" value="{{ $currentBaju }}">
-        <input type="hidden" name="sizes[sepatu]" id="input-sepatu" value="{{ $currentSepatu }}">
-
-        <div class="bg-white rounded-2xl p-6 shadow-card space-y-6 animate-pop">
-            {{-- Baju Field --}}
-            <section>
-                <label class="block font-label-md text-label-md text-secondary mb-2">UKURAN BAJU</label>
-                <button type="button"
-                        class="w-full flex items-center justify-between px-4 h-14 rounded-xl bg-surface-container-low active:bg-black/[0.04] transition-colors"
-                        data-size-field="baju"
-                        id="field-baju"
-                        {{ !$canEdit ? 'disabled' : '' }}>
-                    <span class="font-body-md text-body-md text-secondary/70">Pilih ukuran</span>
-                    <span class="flex items-center gap-2">
-                        <span id="field-baju-value" class="font-body-md text-body-md text-primary font-semibold">{{ $currentBaju ?? '—' }}</span>
-                        <span class="material-symbols-outlined text-primary">chevron_right</span>
-                    </span>
-                </button>
-                @error('sizes.baju')
-                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                @enderror
-            </section>
-
-            {{-- Sepatu Field --}}
-            <section>
-                <label class="block font-label-md text-label-md text-secondary mb-2">UKURAN SEPATU</label>
-                <button type="button"
-                        class="w-full flex items-center justify-between px-4 h-14 rounded-xl bg-surface-container-low active:bg-black/[0.04] transition-colors"
-                        data-size-field="sepatu"
-                        id="field-sepatu"
-                        {{ !$canEdit ? 'disabled' : '' }}>
-                    <span class="font-body-md text-body-md text-secondary/70">Pilih ukuran</span>
-                    <span class="flex items-center gap-2">
-                        <span id="field-sepatu-value" class="font-body-md text-body-md text-primary font-semibold">{{ $currentSepatu ?? '—' }}</span>
-                        <span class="material-symbols-outlined text-primary">chevron_right</span>
-                    </span>
-                </button>
-                @error('sizes.sepatu')
-                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                @enderror
-            </section>
-        </div>
-
-        {{-- Submit Button --}}
-        @if($canEdit)
-        <div class="mt-6">
-            <button type="submit"
-                    class="w-full bg-primary text-white h-14 rounded-full font-headline-sm text-headline-sm shadow-button active:scale-[0.98] transition-transform duration-200 disabled:opacity-40 disabled:saturate-50"
-                    id="btn-save">
-                Simpan Ukuran
-            </button>
-        </div>
-        @endif
-    </form>
-
-    {{-- Scripts --}}
     @push('scripts')
     <script>
-        const sizeOptions = @json($sizeOptions);
-        const selectedSizes = {
-            baju: @json($currentBaju),
-            sepatu: @json($currentSepatu)
-        };
+      let currentPickerType = 'uniform';
+      const uniformSizes = {!! json_encode(!empty($sizeOptions['baju']) ? $sizeOptions['baju'] : ['S', 'M', 'L', 'XL', 'XXL', '3XL']) !!};
+      const shoeSizes = {!! json_encode(!empty($sizeOptions['sepatu']) ? $sizeOptions['sepatu'] : ['36', '37', '38', '39', '40', '41', '42', '43']) !!};
 
-        // ── Size Field Click → Open Bottom Sheet ──
-        document.querySelectorAll('[data-size-field]').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                const category = this.getAttribute('data-size-field');
-                openSizeSheet(category);
-            });
+      function openSizePicker(type) {
+        currentPickerType = type;
+        const title = document.getElementById('sizePickerTitle');
+        const desc = document.getElementById('sizePickerDesc');
+        const currentVal = type === 'uniform' 
+          ? document.getElementById('selectedUniformVal').textContent.trim()
+          : document.getElementById('selectedShoeVal').textContent.trim();
+
+        if (type === 'uniform') {
+          title.textContent = 'Pilih Ukuran Seragam';
+          desc.textContent = 'Tersedia ukuran standar S hingga 3XL.';
+          renderChips(uniformSizes, currentVal);
+        } else {
+          title.textContent = 'Pilih Ukuran Sepatu';
+          desc.textContent = 'Tersedia ukuran standar EU 36 hingga 43.';
+          renderChips(shoeSizes, currentVal);
+        }
+
+        document.getElementById('sizePickerBackdrop').classList.add('show');
+        document.getElementById('sizePickerSheet').classList.add('show');
+      }
+
+      function renderChips(sizes, currentVal) {
+        const container = document.getElementById('sizeChipsContainer');
+        container.innerHTML = sizes.map(size => `
+          <button type="button" onclick="selectSize('${size}')" class="size-chip-btn ${size === currentVal ? 'active' : ''}">
+            ${size}
+          </button>
+        `).join('');
+      }
+
+      function selectSize(size) {
+        if (currentPickerType === 'uniform') {
+          document.getElementById('selectedUniformVal').textContent = size;
+          document.getElementById('inputUniformVal').value = size;
+        } else {
+          document.getElementById('selectedShoeVal').textContent = size;
+          document.getElementById('inputShoeVal').value = size;
+        }
+        closeSizePicker();
+      }
+
+      function closeSizePicker() {
+        document.getElementById('sizePickerBackdrop').classList.remove('show');
+        document.getElementById('sizePickerSheet').classList.remove('show');
+      }
+
+      function confirmSizeChange() {
+        const uniform = document.getElementById('selectedUniformVal').textContent.trim();
+        const shoe = document.getElementById('selectedShoeVal').textContent.trim();
+
+        showAppModal({
+          title: 'Simpan Perubahan Ukuran?',
+          message: `Pastikan data ukuran sudah benar:\n• Seragam: ${uniform}\n• Sepatu: ${shoe}\n\nApakah Anda yakin ingin menyimpan perubahan?`,
+          type: 'question',
+          cancelText: 'Batal',
+          confirmText: 'Ya, Simpan',
+          onConfirm: () => {
+            document.getElementById('sizeForm').submit();
+          }
         });
-
-        function sizeSheetHTML(category) {
-            const opts = sizeOptions[category] || [];
-            const title = category === 'baju' ? 'Ukuran Baju' : 'Ukuran Sepatu';
-            const optionsHtml = opts.length > 0
-                ? opts.map(function(size) {
-                    const active = size === selectedSizes[category]
-                        ? ' bg-primary/5 text-primary font-semibold'
-                        : ' text-secondary/70';
-                    return '<button type="button" class="size-option w-full flex items-center justify-between px-4 py-3.5 rounded-xl hover:bg-black/[0.02] transition-colors' + active +
-                        '" data-size-category="' + category + '" data-size-value="' + size +
-                        '"><span class="font-body-md text-body-md">' + size +
-                        '</span><span class="material-symbols-outlined text-[18px]">check</span></button>';
-                }).join('')
-                : '<p class="font-body-md text-body-md text-secondary/60 px-4 py-3 text-center">Ukuran belum diatur oleh admin.</p>';
-            return '<div class="py-2">' +
-                '<h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">' + title + '</h3>' +
-                '<div class="space-y-1 max-h-[312px] overflow-y-auto overscroll-contain scrollbar-hide">' +
-                optionsHtml +
-                '</div></div>';
-        }
-
-        function openSizeSheet(category) {
-            const html = sizeSheetHTML(category);
-            Alpine.store('bottomSheet').openSheet(html);
-
-            // Bind size option clicks after sheet opens
-            setTimeout(function() {
-                document.querySelectorAll('.size-option[data-size-category="' + category + '"]').forEach(function(btn) {
-                    btn.addEventListener('click', function() {
-                        const value = this.getAttribute('data-size-value');
-                        selectSize(category, value);
-                    });
-                });
-            }, 50);
-        }
-
-        function selectSize(category, value) {
-            selectedSizes[category] = value;
-
-            // Update hidden inputs
-            const input = document.getElementById('input-' + category);
-            if (input) input.value = value;
-
-            // Update field display
-            const fieldEl = document.getElementById('field-' + category + '-value');
-            if (fieldEl) fieldEl.textContent = value;
-
-            // Close the bottom sheet
-            Alpine.store('bottomSheet').closeSheet();
-        }
+      }
     </script>
     @endpush
-</x-app-layout>
+</x-student-layout>
