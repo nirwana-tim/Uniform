@@ -16,7 +16,12 @@
 /node_modules
 .vercel
 /.opencode
+/.mimocode
+/.slim
+/docs
 /tests
+/test
+/AGENTS.md
 /public/build
 /public/hot
 /public/storage
