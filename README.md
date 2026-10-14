@@ -146,13 +146,15 @@ php artisan migrate:fresh --seed
 
 ## Dokumentasi
 
-Seluruh dokumentasi tersedia di folder [`docs/`](docs/):
+Dokumentasi lengkap sistem berbasis bukti tersedia di folder [`Horizon-UniStock-Documentation/`](Horizon-UniStock-Documentation/):
 
-| Kategori | Isi |
-|----------|-----|
-| [Project](docs/project/) | Overview, PRD, ERD, flowchart, arsitektur, item code, security, risks, timeline, testing |
-| [Technical](docs/technical/) | Blade, Breeze, Spatie, Excel, QR Code, QR Scanner, Mail SMTP |
-| [Guides](docs/guides/) | Instalasi, kontribusi, pedoman AI |
+| Dokumen | Keterangan & Format |
+|---------|---------------------|
+| [00-Project-Context.md](Horizon-UniStock-Documentation/00-Project-Context.md) | Konteks inti proyek, identitas sistem, 15 fakta kanonis, dan pedoman kerja AI |
+| [01-UniStock-Master-Documentation.pdf](Horizon-UniStock-Documentation/01-UniStock-Master-Documentation.pdf) | **Master Documentation PDF (21 Halaman A4 Searchable, 90 Bab)** |
+| [02-Technical-Reference/](Horizon-UniStock-Documentation/02-Technical-Reference/) | Kamus database (58 tabel), katalog API & rute, diagram arsitektur, dan panduan deployment cPanel |
+| [03-Bugs-and-Decisions.md](Horizon-UniStock-Documentation/03-Bugs-and-Decisions.md) | 8 Architecture Decision Records (ADR), resolusi kasus operasional, dan tracking bug |
+| [04-Change-Log.md](Horizon-UniStock-Documentation/04-Change-Log.md) | Catatan riwayat versi dan pembaruan sistem dari MVP hingga V1.2.0 |
 
 ## Lisensi
 
