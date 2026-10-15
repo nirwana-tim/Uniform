@@ -126,24 +126,6 @@ class DistributionService
                 throw new \Exception('Terdapat barang yang tidak termasuk dalam jadwal distribusi "'.$schedule->name.'".');
             }
 
-            $existingTransaction = DistributionTransaction::where('student_id', $student->id)
-                ->where('schedule_id', $schedule->id)
-                ->where('status', '!=', 'cancelled')
-                ->lockForUpdate()
-                ->exists();
-
-            if ($existingTransaction) {
-                throw new \Exception('Mahasiswa ini sudah melakukan pengambilan pada jadwal "'.$schedule->name.'". Tidak boleh mengambil ulang.');
-            }
-            $transaction = DistributionTransaction::create([
-                'student_id' => $student->id,
-                'schedule_id' => $schedule->id,
-                'staff_id' => $staff->id,
-                'status' => 'completed',
-                'pickup_time' => now(),
-                'notes' => $manualNote,
-            ]);
-
             $entitlement = $this->getEntitlementForStudent($student, $schedule);
             $entitlementMap = $entitlement ? $entitlement->items->keyBy('item_id') : collect();
             $entitlementByBaseCode = $entitlement
@@ -169,6 +151,39 @@ class DistributionService
                 ->selectRaw('items.base_code, SUM(distribution_items.quantity) as total')
                 ->pluck('total', 'base_code')
                 ->map(fn ($v) => (int) $v);
+
+            $hasPendingEntitlement = false;
+            if ($entitlement && $entitlement->items->isNotEmpty()) {
+                foreach ($entitlement->items as $entItem) {
+                    $itemCode = $entItem->item?->base_code;
+                    $taken = $itemCode
+                        ? ($distributedByBaseCode[$itemCode] ?? 0)
+                        : ($distributedByItem[$entItem->item_id] ?? 0);
+                    if ($taken < (int) $entItem->quantity) {
+                        $hasPendingEntitlement = true;
+                        break;
+                    }
+                }
+            }
+
+            $existingTransactions = DistributionTransaction::where('student_id', $student->id)
+                ->where('schedule_id', $schedule->id)
+                ->where('status', '!=', 'cancelled')
+                ->lockForUpdate()
+                ->exists();
+
+            if ($existingTransactions && ! $hasPendingEntitlement) {
+                throw new \Exception('Mahasiswa ini sudah melakukan pengambilan pada jadwal "'.$schedule->name.'". Tidak boleh mengambil ulang.');
+            }
+
+            $transaction = DistributionTransaction::create([
+                'student_id' => $student->id,
+                'schedule_id' => $schedule->id,
+                'staff_id' => $staff->id,
+                'status' => 'completed',
+                'pickup_time' => now(),
+                'notes' => $manualNote,
+            ]);
 
             $allFullyStocked = true;
             $autoNotes = [];
@@ -333,6 +348,17 @@ class DistributionService
                     if (in_array($entitlementItem->item_id, array_column($items, 'item_id'))) {
                         continue;
                     }
+
+                    $productKey = $entBaseCode ?? (string) $entitlementItem->item_id;
+                    $alreadyDistributedTotal = (int) ($entBaseCode
+                            ? ($distributedByBaseCode[$entBaseCode] ?? 0)
+                            : ($distributedByItem[$entitlementItem->item_id] ?? 0))
+                        + (int) ($distributedInRequest[$productKey] ?? 0);
+
+                    if ($alreadyDistributedTotal >= (int) $entitlementItem->quantity) {
+                        continue;
+                    }
+
                     $allFullyStocked = false;
                     $expectedSize = $studentSizesByBaseCode[$entitlementItem->item_id]
                         ?? $studentSizesByBaseCode[$entBaseCode ?? ''] ?? '-';

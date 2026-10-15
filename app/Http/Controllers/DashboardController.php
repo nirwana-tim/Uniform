@@ -84,17 +84,38 @@ class DashboardController extends Controller
 
         $profile = $student->activeSizeProfile;
 
+        $totalRequiredSizes = 0;
+        $requiresBaju = true;
+        $requiresSepatu = true;
+
+        if ($activeEvent) {
+            $requiresBaju = ! empty($activeEvent->baju_size_options);
+            $requiresSepatu = ! empty($activeEvent->sepatu_size_options);
+            if ($requiresBaju) {
+                $totalRequiredSizes++;
+            }
+            if ($requiresSepatu) {
+                $totalRequiredSizes++;
+            }
+        }
+
+        if ($totalRequiredSizes === 0) {
+            $totalRequiredSizes = 2;
+            $requiresBaju = true;
+            $requiresSepatu = true;
+        }
+
         $completedSizeCount = 0;
-        if ($profile?->baju_size) {
+        if ($requiresBaju && $profile?->baju_size) {
             $completedSizeCount++;
         }
-        if ($profile?->sepatu_size) {
+        if ($requiresSepatu && $profile?->sepatu_size) {
             $completedSizeCount++;
         }
 
         return view('dashboards.student', compact(
             'student', 'sizeEvents', 'activeEvent', 'submissions', 'submission',
-            'canEdit', 'distributionSchedules', 'activeSchedule', 'profile', 'completedSizeCount'
+            'canEdit', 'distributionSchedules', 'activeSchedule', 'profile', 'completedSizeCount', 'totalRequiredSizes'
         ));
     }
 }

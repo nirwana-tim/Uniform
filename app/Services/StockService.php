@@ -276,6 +276,7 @@ class StockService
             $remaining = $quantity;
             $totalCost = 0;
             $consumedBatches = [];
+            $movementIds = [];
 
             foreach ($batches as $batch) {
                 if ($remaining <= 0) {
@@ -286,7 +287,7 @@ class StockService
 
                 $batch->decrement('quantity_remaining', $consume);
 
-                StockMovement::create([
+                $movement = StockMovement::create([
                     'item_id' => $itemId,
                     'variant_id' => $variantId,
                     'type' => 'OUT',
@@ -304,6 +305,7 @@ class StockService
                     'quantity' => $consume,
                     'unit_hpp' => $batch->unit_hpp,
                 ];
+                $movementIds[] = $movement->id;
 
                 $remaining -= $consume;
             }
@@ -318,14 +320,52 @@ class StockService
                 'blended_hpp' => $blendedHpp,
                 'total_cost' => $totalCost,
                 'consumed_batches' => $consumedBatches,
+                'movement_ids' => $movementIds,
             ];
         }, attempts: 5);
+    }
+
+    public function getPendingDemandCounts(): Collection
+    {
+        return DB::table('student_size_items')
+            ->join('student_size_profiles', 'student_size_items.size_profile_id', '=', 'student_size_profiles.id')
+            ->join('students', 'student_size_profiles.student_id', '=', 'students.id')
+            ->join('items', 'student_size_items.item_id', '=', 'items.id')
+            ->where('students.status', 'active')
+            ->where('student_size_profiles.is_filled', true)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('distribution_items as di')
+                    ->join('distribution_transactions as dt', 'di.transaction_id', '=', 'dt.id')
+                    ->whereColumn('dt.student_id', 'students.id')
+                    ->where('dt.status', '!=', 'cancelled')
+                    ->where('di.quantity', '>', 0)
+                    ->where(function ($matchQuery) {
+                        $matchQuery->whereColumn('di.item_id', 'student_size_items.item_id')
+                            ->orWhere(function ($baseCodeQuery) {
+                                $baseCodeQuery->whereNotNull('items.base_code')
+                                    ->where('items.base_code', '!=', '')
+                                    ->whereExists(function ($sub) {
+                                        $sub->select(DB::raw(1))
+                                            ->from('items as i2')
+                                            ->whereColumn('i2.id', 'di.item_id')
+                                            ->whereColumn('i2.base_code', 'items.base_code');
+                                    });
+                            });
+                    });
+            })
+            ->select('student_size_items.item_id', 'student_size_items.size')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('student_size_items.item_id', 'student_size_items.size')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->item_id.'|'.$row->size => (int) $row->total]);
     }
 
     public function getDemandShortageItems(): Collection
     {
         return DB::table('student_size_items')
             ->join('student_size_profiles', 'student_size_items.size_profile_id', '=', 'student_size_profiles.id')
+            ->join('students', 'student_size_profiles.student_id', '=', 'students.id')
             ->join('items', 'student_size_items.item_id', '=', 'items.id')
             ->leftJoin('item_variants', function ($join) {
                 $join->on('student_size_items.item_id', '=', 'item_variants.item_id')
@@ -333,6 +373,29 @@ class StockService
             })
             ->leftJoin('stock_balances', function ($join) {
                 $join->on('item_variants.id', '=', 'stock_balances.variant_id');
+            })
+            ->where('students.status', 'active')
+            ->where('student_size_profiles.is_filled', true)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('distribution_items as di')
+                    ->join('distribution_transactions as dt', 'di.transaction_id', '=', 'dt.id')
+                    ->whereColumn('dt.student_id', 'students.id')
+                    ->where('dt.status', '!=', 'cancelled')
+                    ->where('di.quantity', '>', 0)
+                    ->where(function ($matchQuery) {
+                        $matchQuery->whereColumn('di.item_id', 'student_size_items.item_id')
+                            ->orWhere(function ($baseCodeQuery) {
+                                $baseCodeQuery->whereNotNull('items.base_code')
+                                    ->where('items.base_code', '!=', '')
+                                    ->whereExists(function ($sub) {
+                                        $sub->select(DB::raw(1))
+                                            ->from('items as i2')
+                                            ->whereColumn('i2.id', 'di.item_id')
+                                            ->whereColumn('i2.base_code', 'items.base_code');
+                                    });
+                            });
+                    });
             })
             ->select(
                 'items.id as item_id',
@@ -370,6 +433,7 @@ class StockService
     {
         return DB::table('student_size_items')
             ->join('student_size_profiles', 'student_size_items.size_profile_id', '=', 'student_size_profiles.id')
+            ->join('students', 'student_size_profiles.student_id', '=', 'students.id')
             ->join('items', 'student_size_items.item_id', '=', 'items.id')
             ->leftJoin('item_variants', function ($join) {
                 $join->on('student_size_items.item_id', '=', 'item_variants.item_id')
@@ -377,6 +441,29 @@ class StockService
             })
             ->leftJoin('stock_balances', function ($join) {
                 $join->on('item_variants.id', '=', 'stock_balances.variant_id');
+            })
+            ->where('students.status', 'active')
+            ->where('student_size_profiles.is_filled', true)
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('distribution_items as di')
+                    ->join('distribution_transactions as dt', 'di.transaction_id', '=', 'dt.id')
+                    ->whereColumn('dt.student_id', 'students.id')
+                    ->where('dt.status', '!=', 'cancelled')
+                    ->where('di.quantity', '>', 0)
+                    ->where(function ($matchQuery) {
+                        $matchQuery->whereColumn('di.item_id', 'student_size_items.item_id')
+                            ->orWhere(function ($baseCodeQuery) {
+                                $baseCodeQuery->whereNotNull('items.base_code')
+                                    ->where('items.base_code', '!=', '')
+                                    ->whereExists(function ($sub) {
+                                        $sub->select(DB::raw(1))
+                                            ->from('items as i2')
+                                            ->whereColumn('i2.id', 'di.item_id')
+                                            ->whereColumn('i2.base_code', 'items.base_code');
+                                    });
+                            });
+                    });
             })
             ->select(
                 'items.id as item_id',
@@ -424,12 +511,7 @@ class StockService
             ->orderBy('item_id')
             ->get();
 
-        $demands = DB::table('student_size_items')
-            ->select('item_id', 'size')
-            ->selectRaw('COUNT(*) as total')
-            ->groupBy('item_id', 'size')
-            ->get()
-            ->mapWithKeys(fn ($row) => [$row->item_id.'|'.$row->size => (int) $row->total]);
+        $demands = $this->getPendingDemandCounts();
 
         return $balances->map(function (StockBalance $balance) use ($demands) {
             $balance->demand = $demands[$balance->item_id.'|'.$balance->variant?->size] ?? 0;

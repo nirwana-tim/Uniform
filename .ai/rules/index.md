@@ -7,4 +7,5 @@ Before planning or editing, find the row whose globs match the file's path and r
 | app/Exports/** | .ai/rules/exports.md |
 | app/Http/Controllers/Finance/SizeChangeEventController.php | .ai/rules/finance.md |
 | ** | .ai/rules/general.md |
+| app/Services/** | .ai/rules/services.md |
 | resources/views/**/*.blade.php | .ai/rules/views.md |

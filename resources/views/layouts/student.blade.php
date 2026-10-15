@@ -49,16 +49,25 @@
     @endif
   </div>
 
+  @if(session('success') || session('error') || session('info'))
+    <div id="flash-message-data"
+         data-type="{{ session('success') ? 'success' : (session('error') ? 'warning' : 'info') }}"
+         data-title="{{ session('success') ? 'Berhasil' : (session('error') ? 'Perhatian' : 'Informasi') }}"
+         data-message="{{ session('success') ?? session('error') ?? session('info') }}"
+         style="display: none;"></div>
+  @endif
+
   <script>
     // Handle session messages
     document.addEventListener('DOMContentLoaded', () => {
-      @if(session('success'))
-        showAppModal({ title: 'Berhasil', message: @json(session('success')), type: 'success' });
-      @elseif(session('error'))
-        showAppModal({ title: 'Perhatian', message: @json(session('error')), type: 'warning' });
-      @elseif(session('info'))
-        showAppModal({ title: 'Informasi', message: @json(session('info')), type: 'info' });
-      @endif
+      const flash = document.getElementById('flash-message-data');
+      if (flash && typeof window.showAppModal === 'function') {
+        window.showAppModal({
+          title: flash.dataset.title,
+          message: flash.dataset.message,
+          type: flash.dataset.type
+        });
+      }
     });
   </script>
   @stack('scripts')

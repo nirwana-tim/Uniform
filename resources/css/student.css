@@ -519,6 +519,16 @@ body {
   transform: scale(1.02);
 }
 
+.btn-cta-secondary {
+  background-color: #64748b;
+  color: #ffffff;
+}
+
+.btn-cta-secondary:hover {
+  background-color: #475569;
+  transform: scale(1.02);
+}
+
 .btn-outline-cta {
   background-color: transparent;
   color: var(--dark-text);

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ItemPrice;
 use App\Models\StockBatch;
 use App\Models\StockMovement;
 use App\Models\StockOpname;
@@ -103,12 +104,17 @@ class StockOpnameService
                         "Stock Opname adjustment (shortage) - {$batch->reference_number}"
                     );
 
-                    $movements = StockMovement::where('reference_type', StockOpname::class)
-                        ->where('reference_id', $batch->id)
-                        ->where('item_id', $item->item_id)
-                        ->where('variant_id', $item->variant_id)
-                        ->latest()
-                        ->get();
+                    $createdMovementIds = $fifoResult['movement_ids'] ?? [];
+                    if (! empty($createdMovementIds)) {
+                        $movements = StockMovement::whereIn('id', $createdMovementIds)->get();
+                    } else {
+                        $movements = StockMovement::where('reference_type', StockOpname::class)
+                            ->where('reference_id', $batch->id)
+                            ->where('item_id', $item->item_id)
+                            ->where('variant_id', $item->variant_id)
+                            ->latest()
+                            ->get();
+                    }
 
                     foreach ($movements as $movement) {
                         StockOpnameAdjustment::create([
@@ -123,7 +129,12 @@ class StockOpnameService
                     }
                 } else {
                     $balance = $this->stockService->getBalance($item->item_id, $item->variant_id);
-                    $unitHpp = $balance?->last_hpp ?? 0;
+                    $unitHpp = (float) ($balance?->last_hpp ?? 0);
+                    if ($unitHpp <= 0) {
+                        $unitHpp = (float) ($item->item?->hpp
+                            ?? ItemPrice::where('item_id', $item->item_id)->latest('effective_date')->value('hpp')
+                            ?? 0);
+                    }
 
                     $newBatch = StockBatch::create([
                         'item_id' => $item->item_id,

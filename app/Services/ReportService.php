@@ -106,7 +106,10 @@ class ReportService
     public function getSalesDashboardData(int $month, int $year): array
     {
         $soldSub = DB::table('distribution_items as di')
-            ->select('di.item_id', DB::raw('SUM(di.quantity) as total_sold'))
+            ->select('di.item_id',
+                DB::raw('SUM(di.quantity) as total_sold'),
+                DB::raw('SUM(di.quantity * di.hpp) as total_cogs')
+            )
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->whereYear('dt.pickup_time', $year)
             ->whereMonth('dt.pickup_time', $month)
@@ -121,6 +124,11 @@ class ReportService
 
         $balanceSub = DB::table('stock_balances')
             ->select('item_id', DB::raw('SUM(quantity) as stock_sum'))
+            ->groupBy('item_id');
+
+        $batchSub = DB::table('stock_batches')
+            ->select('item_id', DB::raw('SUM(quantity_remaining * unit_hpp) as batch_valuation'))
+            ->where('quantity_remaining', '>', 0)
             ->groupBy('item_id');
 
         $categories = DB::table('item_categories as ic')
@@ -174,13 +182,14 @@ class ReportService
             ->select(
                 'i.id', 'i.name', 'i.code',
                 DB::raw('COALESCE(sb.stock_sum, 0) as available_stock'),
-                DB::raw('COALESCE(sb.stock_sum * i.hpp, 0) as stock_value'),
+                DB::raw('COALESCE(batch_val.batch_valuation, sb.stock_sum * i.hpp, 0) as stock_value'),
                 DB::raw('COALESCE(sri.total_received, 0) as stock_receive'),
                 DB::raw('COALESCE(di.total_sold, 0) as sum_sold'),
-                DB::raw('COALESCE(di.total_sold * sri.avg_unit_price, 0) as expense'),
+                DB::raw('COALESCE(di.total_cogs, di.total_sold * sri.avg_unit_price, 0) as expense'),
                 DB::raw('CASE WHEN COALESCE(sri.total_received, 0) > 0 THEN ROUND((COALESCE(di.total_sold, 0) / sri.total_received) * 100, 2) ELSE 0 END as pct_sold')
             )
             ->leftJoinSub($balanceSub, 'sb', 'sb.item_id', '=', 'i.id')
+            ->leftJoinSub($batchSub, 'batch_val', 'batch_val.item_id', '=', 'i.id')
             ->leftJoinSub($receiveSub, 'sri', 'sri.item_id', '=', 'i.id')
             ->leftJoinSub($soldSub, 'di', 'di.item_id', '=', 'i.id')
             ->orderBy('i.name')
@@ -326,7 +335,7 @@ class ReportService
     {
         $minDate = DB::table('distribution_transactions')->whereNotNull('pickup_time')->min('pickup_time');
         $maxDate = DB::table('distribution_transactions')->whereNotNull('pickup_time')->max('pickup_time');
-$defaultStart = $minDate ? Carbon::parse($minDate)->toDateString() : now()->startOfMonth()->toDateString();
+        $defaultStart = $minDate ? Carbon::parse($minDate)->toDateString() : now()->startOfMonth()->toDateString();
 
         $defaultEnd = $maxDate ? Carbon::parse($maxDate)->toDateString() : now()->toDateString();
 
