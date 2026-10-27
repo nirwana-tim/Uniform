@@ -291,35 +291,31 @@ def generate_report_html(toc_pages=None):
   ol.list-numbered {{
     margin-top: 0;
     margin-bottom: 2.5mm;
-    padding-left: 8mm;
+    padding-left: 6mm;
     text-align: justify;
     line-height: 1.5;
-    orphans: 3;
-    widows: 3;
   }}
 
   ol.list-numbered li {{
-    margin-bottom: 1.8mm;
+    margin-bottom: 2mm;
+    padding-left: 1.5mm;
     text-align: justify;
-    break-inside: avoid;
-    page-break-inside: avoid;
+    line-height: 1.5;
   }}
 
   ul.list-bullet {{
-    margin-top: 0;
-    margin-bottom: 2.5mm;
-    padding-left: 8mm;
+    margin-top: 1.5mm;
+    margin-bottom: 2mm;
+    padding-left: 5mm;
     text-align: justify;
     line-height: 1.5;
-    orphans: 3;
-    widows: 3;
   }}
 
   ul.list-bullet li {{
-    margin-bottom: 1.8mm;
+    margin-bottom: 1.5mm;
+    padding-left: 1.5mm;
     text-align: justify;
-    break-inside: avoid;
-    page-break-inside: avoid;
+    line-height: 1.5;
   }}
 </style>
 </head>
@@ -349,7 +345,7 @@ def generate_report_html(toc_pages=None):
     <li>Bapak Dekan beserta segenap jajaran pimpinan Fakultas Teknologi Informasi dan Komputer (FTIK) Universitas Horizon Indonesia;</li>
     <li>Bapak/Ibu Ketua Program Studi Sistem Informasi Universitas Horizon Indonesia atas dukungan kurikulum dan kompetensi aplikatif yang diberikan;</li>
     <li>Pimpinan Direktorat Keuangan, Biro Administrasi Akademik dan Kemahasiswaan (BAAK), serta staf Bagian Logistik Universitas Horizon Indonesia atas keterbukaan akses data operasional lapangan bagi studi kasus ini;</li>
-    <li>Rekan-rekan mahasiswa Kelas SI-3-A, khususnya anggota Kelompok VIII, atas kerja sama tim, dedikasi, dan soliditas yang luar biasa selama menyelesaikan proyek ini.</li>
+    <li>Rekan-rekan mahasiswa Kelas SI-3-A, khususnya anggota Kelompok I, atas kerja sama tim, dedikasi, dan soliditas yang luar biasa selama menyelesaikan proyek ini.</li>
   </ol>
 
   <p class="par-indent">
@@ -358,7 +354,7 @@ def generate_report_html(toc_pages=None):
 
   <div class="signature-box">
     Karawang, Oktober 2026<br><br><br>
-    <strong>Tim Penulis (Kelompok VIII)</strong>
+    <strong>Tim Penulis (Kelompok I)</strong>
   </div>
 </div>
 
@@ -507,21 +503,21 @@ def generate_report_html(toc_pages=None):
   <div class="section-block">
     <div class="heading-sub">1.1 Latar Belakang</div>
     <p class="par-indent">
-      Perkembangan pesat teknologi informasi dan komunikasi di era Revolusi Industri 4.0 dan Society 5.0 telah mendorong transformasi fundamental dalam tata kelola institusi pendidikan tinggi, di mana pengetahuan (<em>knowledge</em>) diakui sebagai aset intelektual paling strategis dalam menentukan keunggulan kompetitif, kualitas layanan, dan keberlanjutan operasional organisasi. Dalam konteks perguruan tinggi modern, <em>Knowledge Management System</em> (KMS) memegang peranan krusial sebagai kerangka kerja sosio-teknis yang mengintegrasikan sumber daya manusia, proses operasional, serta infrastruktur teknologi informasi guna memfasilitasi siklus penciptaan, kodifikasi, penyimpanan, penyebaran, dan penerapan pengetahuan secara terstruktur (Tiwana, 2002). Berdasarkan teori spiral penciptaan pengetahuan yang dikemukakan oleh Nonaka dan Takeuchi (1995), proses konversi pengetahuan dari ranah implisit yang melekat pada kebiasaan individu (<em>tacit knowledge</em>) ke dalam ranah eksplisit yang terdokumentasi secara formal (<em>explicit knowledge</em>) melalui model SECI (<em>Socialization, Externalization, Combination, Internalization</em>) merupakan fondasi mutlak bagi institusi dalam mencegah terjadinya kehilangan modal intelektual (<em>knowledge loss</em>). Tanpa adanya sistem manajemen pengetahuan yang terstandardisasi, universitas rentan mengalami fragmentasi informasi di mana data operasional penting terisolasi dalam unit kerja masing-masing, menghambat kolaborasi lintas bagian, dan menurunkan kecepatan respon dalam melayani kebutuhan sivitas akademika.
+      Perkembangan teknologi informasi era Revolusi Industri 4.0 dan Society 5.0 mendorong institusi perguruan tinggi menempatkan pengetahuan (<em>knowledge</em>) sebagai aset intelektual strategis. Berdasarkan teori spiral penciptaan pengetahuan Nonaka dan Takeuchi (1995) serta kerangka <em>Knowledge Management System</em> (KMS) oleh Tiwana (2002), transformasi pengetahuan implisit (<em>tacit</em>) ke eksplisit (<em>explicit</em>) melalui model SECI (<em>Socialization, Externalization, Combination, Internalization</em>) merupakan fondasi mutlak guna mencegah risiko kehilangan modal intelektual (<em>knowledge loss</em>) dan sekat informasi operasional (<em>knowledge silo</em>).
     </p>
 
     <p class="par-indent">
-      Kondisi aktual pada pengelolaan logistik dan proses distribusi paket seragam mahasiswa baru di Universitas Horizon Indonesia saat ini masih menghadapi berbagai kendala manajerial, kinerja operasional, dan pengolahan data yang memerlukan penanganan komprehensif. Pengetahuan mengenai pemetaan hak paket seragam (<em>entitlements</em>) berdasarkan jenjang dan program studi, riwayat kuota barang per angkatan, serta penanganan kasus-kasus operasional khusus selama ini masih bertumpu pada ingatan lisan staf senior atau terpecah di berbagai dokumen lembar kerja (<em>spreadsheet</em>) lokal yang tidak terintegrasi (<em>knowledge silo</em>). Proses verifikasi kelayakan distribusi mahasiswa masih dilakukan melalui pemeriksaan manual bukti pembayaran kasir Direktorat Keuangan, yang kerap menimbulkan antrean panjang ratusan mahasiswa di depan meja loket aula kampus, kekeliruan penyerahan spesifikasi seragam antar-gender, dan risiko pembagian ganda (<em>double-claim</em>) akibat ketidaksinkronan data secara <em>real-time</em>. Di samping itu, belum adanya sistem inventaris dengan penilaian persediaan berbasis metode <em>First-In, First-Out</em> (FIFO) yang baku mengakibatkan perhitungan Harga Pokok Penjualan (HPP) modal beli menjadi tidak akurat saat dievaluasi oleh bagian keuangan, serta menyulitkan proses rekonsiliasi audit fisik (<em>stock opname</em>) gudang di akhir periode. Kompleksitas penanganan data manual, tingginya risiko kehilangan aset fisik maupun aset pengetahuan akibat rotasi kepanitiaan tahunan, serta tuntutan pelayanan prima bagi mahasiswa baru membuktikan bahwa permasalahan ini mendesak untuk diselesaikan melalui rancangan sistem yang terpadu dan terpercaya.
+      Pada tata kelola operasional distribusi seragam mahasiswa baru di Universitas Horizon Indonesia, pengelolaan data hak barang (<em>entitlements</em>), kuota angkatan, dan penanganan kasus khusus selama ini bertumpu pada ingatan lisan staf atau lembar kerja (<em>spreadsheet</em>) lokal yang tidak terintegrasi. Verifikasi manual bukti pembayaran kasir kerap menimbulkan antrean panjang ratusan mahasiswa, kekeliruan spesifikasi barang, serta kerentanan pembagian ganda (<em>double-claim</em>). Selain itu, belum diterapkannya metode persediaan <em>First-In, First-Out</em> (FIFO) menyulitkan perhitungan Harga Pokok Penjualan (HPP) dan akurasi rekonsiliasi audit fisik (<em>stock opname</em>) gudang di akhir periode.
     </p>
 
     <p class="par-indent">
-      Sebagai solusi efektif dan terukur terhadap permasalahan pengelolaan data dan kelemahan manajerial tersebut, diajukan rancang bangun sebuah platform <em>Knowledge Management System</em> terintegrasi berbasis web yang berfungsi sebagai repositori pengetahuan operasional terpusat sekaligus instrumen kendali distribusi seragam secara <em>real-time</em>. Sistem ini dirancang dengan menggabungkan mekanisme identifikasi digital berbasis kode respons cepat (<em>Quick Response Code</em> / QR Code) yang terikat langsung pada Nomor Induk Mahasiswa (NIM), proteksi penguncian baris data eksklusif (<em>pessimistic row locking</em>) pada basis data untuk menjamin ketiadaan klaim ganda di loket simultan, pemotongan stok otomatis berbasis algoritma penilaian persediaan FIFO, portal pemilihan ukuran mandiri mahasiswa, serta dasbor analitis pelaporan laba kotor (<em>Gross Profit Margin</em> / GPM) bagi pimpinan universitas. Dengan adanya sistem ini, <em>tacit knowledge</em> staf berhasil dieksternalisasi menjadi prosedur operasional standar (SOP) digital yang menjamin transparansi, ketepatan alokasi barang, dan akuntabilitas keuangan institusi. Berdasarkan latar belakang dan urgensi pemecahan masalah tersebut, maka dalam penyusunan tugas besar mata kuliah <em>Knowledge Management System</em> pada Program Studi Sistem Informasi ini disusun laporan proyek berjudul <strong>"PERANCANGAN KNOWLEDGE MANAGEMENT SYSTEM UNTUK MENINGKATKAN EFEKTIFITAS BERBAGI PENGETAHUAN PADA PENGELOLAAN DAN DISTRIBUSI LOGISTIK SERAGAM MAHASISWA DI UNIVERSITAS HORIZON INDONESIA"</strong>.
+      Menjawab kebutuhan tersebut, dirancang platform web <em>Knowledge Management System</em> "Horizon UniStock" sebagai repositori pengetahuan terpusat sekaligus instrumen kendali distribusi logistik terpadu. Sistem ini mengintegrasikan identifikasi digital QR Code mahasiswa, mekanisme <em>pessimistic row locking</em> basis data anti-klaim ganda, otomasi mutasi persediaan berbasis FIFO, portal pemilihan ukuran mandiri, serta dasbor analitis pelaporan manajerial. Berdasarkan urgensi pemecahan masalah tersebut, disusun laporan proyek tugas besar berjudul <strong>"PERANCANGAN KNOWLEDGE MANAGEMENT SYSTEM UNTUK MENINGKATKAN EFEKTIFITAS BERBAGI PENGETAHUAN PADA PENGELOLAAN DAN DISTRIBUSI LOGISTIK SERAGAM MAHASISWA DI UNIVERSITAS HORIZON INDONESIA"</strong>.
     </p>
   </div>
 
   <div class="section-block section-page-start">
     <div class="heading-sub">1.2 Rumusan Masalah</div>
-    <p class="par-regular">
+    <p class="par-indent">
       Berdasarkan latar belakang yang telah diuraikan, identifikasi permasalahan dalam proyek ini dirumuskan ke dalam pertanyaan-pertanyaan penelitian dan perancangan terukur yang relevan dengan ranah keilmuan Knowledge Management System sebagai berikut:
     </p>
     <ol class="list-numbered">
@@ -534,7 +530,7 @@ def generate_report_html(toc_pages=None):
 
   <div class="section-block">
     <div class="heading-sub">1.3 Batasan Masalah</div>
-    <p class="par-regular">
+    <p class="par-indent">
       Agar pembahasan laporan proyek ini terarah, terfokus, dan mendalam sesuai dengan ruang lingkup yang ditetapkan, maka batasan masalah dalam proyek ini diatur sebagai berikut:
     </p>
     <ol class="list-numbered">
@@ -547,7 +543,7 @@ def generate_report_html(toc_pages=None):
 
   <div class="section-block">
     <div class="heading-sub">1.4 Tujuan</div>
-    <p class="par-regular">
+    <p class="par-indent">
       Tujuan dari penyusunan laporan proyek ini adalah pernyataan terukur yang mencerminkan capaian yang hendak dihasilkan, meliputi:
     </p>
     <ol class="list-numbered">
@@ -555,14 +551,14 @@ def generate_report_html(toc_pages=None):
         Merancang dan mengimplementasikan prototipe <em>Knowledge Management System</em> berbasis web yang mampu mengotomasi dan mengintegrasikan seluruh alur pendataan hak, pemindaian digital, verifikasi kelayakan, dan pelaporan logistik seragam di Universitas Horizon Indonesia.
       </li>
       <li><strong>Tujuan Terkait Knowledge Management System (KMS):</strong>
-        <ul class="list-bullet" style="margin-top: 1.5mm;">
+        <ul class="list-bullet">
           <li>Mengeliminasi fenomena sekat informasi (<em>knowledge silo</em>) antar-unit kerja dengan mewujudkan satu sumber kebenaran data terpusat (<em>Single Source of Truth</em> / SSOT).</li>
           <li>Mengkodifikasi kebiasaan operasional staf menjadi prosedur operasional standar (SOP) digital 5 fase yang terdokumentasi dan mudah dipelajari oleh panitia baru.</li>
           <li>Menyediakan instrumen pendukung keputusan manajerial bagi rektorat melalui visualisasi performa distribusi dan analisis margin laba kotor secara akurat.</li>
         </ul>
       </li>
       <li><strong>Tujuan Khusus bagi Mahasiswa:</strong>
-        <ul class="list-bullet" style="margin-top: 1.5mm;">
+        <ul class="list-bullet">
           <li>Melatih dan memperdalam pemahaman mahasiswa Program Studi Sistem Informasi dalam membedah permasalahan nyata organisasi dan merancang arsitektur KMS berbasis teori ilmiah.</li>
           <li>Mengembangkan keterampilan rekayasa perangkat lunak enterprise modern serta melatih kemampuan komunikasi teknis melalui penyusunan karya ilmiah akademik yang terstruktur.</li>
         </ul>
@@ -572,7 +568,7 @@ def generate_report_html(toc_pages=None):
 
   <div class="section-block">
     <div class="heading-sub">1.5 Manfaat</div>
-    <p class="par-regular">
+    <p class="par-indent">
       Pelaksanaan proyek dan penyusunan laporan ini diharapkan mampu memberikan kontribusi positif yang ditinjau dari empat elemen pemangku kepentingan:
     </p>
     <ol class="list-numbered">
@@ -591,9 +587,9 @@ def generate_report_html(toc_pages=None):
     </ol>
   </div>
 
-  <div class="section-block section-page-start">
+  <div class="section-block">
     <div class="heading-sub">1.6 Sistematika Penulisan</div>
-    <p class="par-regular">
+    <p class="par-indent">
       Penyusunan laporan proyek tugas besar ini disusun secara sistematis ke dalam empat bab utama sesuai ketentuan panduan akademik sebagai berikut:
     </p>
     <ul class="list-bullet">
@@ -712,25 +708,26 @@ def create_cover_doc():
     draw_center("DI UNIVERSITAS HORIZON INDONESIA", 224, 14)
 
     # 3. Disusun oleh (Konsisten 12 pt Bold, Jarak Lega 35 pt dari Logo)
-    draw_center("Disusun oleh :", 410, 12)
-    draw_center("Kelompok VIII Kelas SI-3-A", 428, 12)
+    draw_center("Disusun oleh :", 405, 12)
+    draw_center("Kelompok I Kelas SI-3-A", 423, 12)
 
     # 4. Tabel Anggota (Konsisten 12 pt Regular, 2 Kolom Rapi & Sejajar)
     authors = [
-        ("1. Budi Pekerti Simarmata", "(4337855201230001)"),
-        ("2. Sopan Dan Santun",        "(4337855201230002)"),
-        ("3. Fhazar Maulana",          "(4337855201230003)"),
-        ("4. Ahmad Rizky Pratama",     "(4337855201230004)"),
-        ("5. Siti Nurhaliza",          "(4337855201230005)")
+        ("1. Fhazar Raffiful Aqyla", "(4112757201240021)"),
+        ("2. Ferry Noer Hendriawan", "(4112757201240055)"),
+        ("3. Daffa Nazriel Zaildan", "(4112757201240051)"),
+        ("4. Fadel Rahmadhan", "(4112757201240054)"),
+        ("5. Hildan Anugrah tamadi Putra", "(4112757201240008)"),
+        ("6. Acep Ugan Saputra", "(4112757201240034)"),
     ]
-    y_author = 450
+    y_author = 445
     for name, nim in authors:
-        page.insert_text(pymupdf.Point(180.0, y_author), name, fontsize=12, fontname=font_roman)
-        page.insert_text(pymupdf.Point(348.0, y_author), nim, fontsize=12, fontname=font_roman)
-        y_author += 18
+        page.insert_text(pymupdf.Point(160.0, y_author), name, fontsize=12, fontname=font_roman)
+        page.insert_text(pymupdf.Point(335.0, y_author), nim, fontsize=12, fontname=font_roman)
+        y_author += 17.5
 
-    # 5. Dosen Pengajar (Konsisten 12 pt Bold, Jarak Lega 35 pt)
-    draw_center("Dosen Pengajar : Arif Budimansyah Purba, M.Kom.", 560, 12, fontname=font_bold)
+    # 5. Dosen Pengajar (Konsisten 12 pt Bold, Jarak Lega 30 pt)
+    draw_center("Dosen Pengajar : Arif Budimansyah Purba, M.Kom.", 562, 12, fontname=font_bold)
 
     # 6. Institusi Footer (Konsisten 14 pt Bold, Spasi Berimbang)
     draw_center("PROGRAM STUDI SISTEM INFORMASI", 635, 14)
@@ -823,7 +820,7 @@ def build_pdf():
     # Set Metadata Dokumen PDF
     doc.set_metadata({
         "title": "Laporan Proyek Tugas Besar KMS — BAB I Pendahuluan",
-        "author": "Kelompok VIII Kelas SI-3-A (Universitas Horizon Indonesia)",
+        "author": "Kelompok I Kelas SI-3-A (Universitas Horizon Indonesia)",
         "subject": "Perancangan Knowledge Management System untuk Meningkatkan Efektifitas Berbagi Pengetahuan pada Pengelolaan dan Distribusi Logistik Seragam Mahasiswa di Universitas Horizon Indonesia",
         "keywords": "KMS, Knowledge Management System, Tugas Besar, Universitas Horizon Indonesia, Bab I Pendahuluan, SECI Model, FIFO",
         "creator": "Horizon UniStock Documentation Engine",
@@ -857,9 +854,9 @@ def build_pdf():
             text_point = pymupdf.Point(rect.width / 2 - 4, rect.height - 40)
             page.insert_text(text_point, arabic_num, fontsize=11, fontname=font_name)
         else:
-            # Halaman Lanjutan: Kanan Bawah
+            # Halaman Lanjutan: Bawah Tengah
             arabic_num = str((pno + 1) - bab1_final_start_page + 1)
-            text_point = pymupdf.Point(rect.width - 85, rect.height - 40)
+            text_point = pymupdf.Point(rect.width / 2 - 4, rect.height - 40)
             page.insert_text(text_point, arabic_num, fontsize=11, fontname=font_name)
             
     # Outlines / PDF Bookmarks

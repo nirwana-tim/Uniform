@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 portrait;
+    margin-top: 25mm;
+    margin-bottom: 25mm;
+    margin-left: 40mm;
+    margin-right: 30mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 10.5pt;
+    line-height: 1.28;
+    color: #000;
+    margin: 0;
+    padding: 0;
+  }
+  .heading-bab {
+    text-align: center;
+    font-size: 12pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 2mm;
+    line-height: 1.2;
+  }
+  .subhead {
+    font-size: 10.5pt;
+    font-weight: bold;
+    margin-top: 1.4mm;
+    margin-bottom: 0.4mm;
+  }
+  p.par {
+    text-align: justify;
+    text-indent: 10mm;
+    margin: 0 0 0.8mm 0;
+  }
+  .list-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.4mm;
+  }
+  .list-table td {
+    padding: 0;
+    vertical-align: top;
+    text-align: justify;
+    line-height: 1.26;
+  }
+  .list-table td.num {
+    width: 5mm;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+  <div class="heading-bab">BAB I<br>PENDAHULUAN</div>
+  
+  <div class="subhead">1.1 Latar Belakang</div>
+  <p class="par">
+    Perkembangan teknologi informasi mendorong transformasi tata kelola pendidikan tinggi, di mana pengetahuan (<em>knowledge</em>) menjadi aset strategis. Berdasarkan teori SECI Nonaka-Takeuchi (1995), konversi dari <em>tacit</em> ke <em>explicit knowledge</em> krusial guna mencegah hilangnya modal intelektual (<em>knowledge loss</em>). Kondisi aktual logistik dan distribusi seragam di Universitas Horizon Indonesia masih bertumpu pada lembar kerja (<em>spreadsheet</em>) lokal dan verifikasi manual, yang kerap memicu sekat informasi (<em>knowledge silo</em>), antrean panjang loket, serta risiko penyerahan ganda (<em>double-claim</em>). Sebagai solusi terpadu, dirancang <em>Knowledge Management System</em> (KMS) berbasis web dengan verifikasi QR Code, algoritma FIFO, dan proteksi transaksi <em>pessimistic locking</em>. Berdasarkan urgensi tersebut, disusun laporan proyek berjudul <strong>"Perancangan Knowledge Management System untuk Meningkatkan Efektifitas Berbagi Pengetahuan pada Pengelolaan dan Distribusi Logistik Seragam Mahasiswa di Universitas Horizon Indonesia"</strong>.
+  </p>
+
+  <div class="subhead">1.2 Rumusan Masalah</div>
+  <table class="list-table">
+    <tr><td class="num">1.</td><td>Bagaimana arsitektur web KMS yang efektif dalam mengintegrasikan alur data dan pengetahuan logistik seragam di Universitas Horizon Indonesia?</td></tr>
+    <tr><td class="num">2.</td><td>Bagaimana implementasi model SECI dan metode persediaan FIFO dengan QR Code guna mencegah <em>knowledge loss</em> dan klaim ganda?</td></tr>
+  </table>
+
+  <div class="subhead">1.3 Batasan Masalah</div>
+  <table class="list-table">
+    <tr><td class="num">1.</td><td>Ruang lingkup operasional difokuskan pada distribusi logistik seragam mahasiswa Universitas Horizon Indonesia Kampus Karawang.</td></tr>
+    <tr><td class="num">2.</td><td>Sistem mencakup empat pilar KMS (<em>capture, storage, sharing, application</em>) berbasis Laravel 11 dan basis data MySQL 8.0.</td></tr>
+  </table>
+
+  <div class="subhead">1.4 Tujuan</div>
+  <table class="list-table">
+    <tr><td class="num">1.</td><td><strong>Tujuan Judul:</strong> Mengembangkan prototipe web KMS terpadu untuk digitalisasi pendataan, verifikasi QR Code, dan pelaporan logistik seragam.</td></tr>
+    <tr><td class="num">2.</td><td><strong>Tujuan KMS:</strong> Mengeliminasi <em>knowledge silo</em> dan mengkodifikasi SOP staf ke dalam repositori pengetahuan terpusat (SSOT).</td></tr>
+    <tr><td class="num">3.</td><td><strong>Tujuan Mahasiswa:</strong> Melatih kompetensi rekayasa perangkat lunak enterprise dan metodologi ilmiah sistem informasi.</td></tr>
+  </table>
+
+  <div class="subhead">1.5 Manfaat</div>
+  <table class="list-table">
+    <tr><td class="num">1.</td><td><strong>Disiplin Ilmu (SI):</strong> Referensi empiris penerapan teori KMS modern yang terintegrasi algoritma inventaris FIFO dan QR Code.</td></tr>
+    <tr><td class="num">2.</td><td><strong>Mahasiswa & Institusi:</strong> Memangkas antrean loket, menjamin akurasi kuota persediaan gudang, dan transparansi laporan laba kotor.</td></tr>
+    <tr><td class="num">3.</td><td><strong>Penulis:</strong> Memperdalam kemampuan metodologis perancangan sistem informasi berbasis pengetahuan dalam memecahkan masalah nyata.</td></tr>
+  </table>
+
+  <div class="subhead">1.6 Sistematika Penulisan</div>
+  <p class="par">
+    Laporan ini disusun dalam empat bab: <strong>BAB I Pendahuluan</strong> menyajikan latar belakang hingga sistematika penulisan; <strong>BAB II Tinjauan Pustaka</strong> menguraikan konsep KMS, model SECI, dan FIFO; <strong>BAB III Pembahasan</strong> menyajikan perancangan basis pengetahuan, ERD, dan prototipe sistem; serta <strong>BAB IV Penutup</strong> memuat simpulan dan saran perbaikan sistem.
+  </p>
+</body>
+</html>
