@@ -289,7 +289,7 @@
           
           <!-- Top Text Content (Pinned to top, aligned with right card header) -->
           <div class="relative z-10">
-            <h1 class="text-3xl sm:text-4xl lg:text-[54px] xl:text-[60px] font-normal sm:font-medium tracking-normal leading-[1.18] text-white font-display">
+            <h1 class="text-3xl sm:text-[36px] lg:text-[54px] xl:text-[60px] font-normal sm:font-medium tracking-normal leading-[1.18] sm:leading-[1.18] text-white font-display">
               Kelola Pengambilan<br>
               Seragam dengan<br>
               Mudah.
@@ -932,42 +932,6 @@
 
       </div>
 
-    </div>
-  </section>
-
-  <!-- ================= BOTTOM CTA BANNER ================= -->
-  <section class="w-full px-4 sm:px-6 lg:px-8 py-10 sm:py-16 max-w-[1440px] mx-auto">
-    <div class="relative bg-gradient-to-br from-[#980517] via-[#850414] to-[#5e020d] rounded-[20px] sm:rounded-[26px] p-8 sm:p-12 lg:p-16 text-white text-center shadow-xl overflow-hidden">
-      <!-- Decorative Glow Elements -->
-      <div class="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/5 pointer-events-none blur-2xl"></div>
-      <div class="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-[#D4A83A]/10 pointer-events-none blur-2xl"></div>
-
-      <div class="relative z-10 max-w-3xl mx-auto space-y-6">
-        <div class="badge-capsule border-[#D4A83A] text-[#D4A83A] mx-auto">
-          <svg class="w-5 h-5 text-[#D4A83A] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-          <span>Siap Mengambil Seragam?</span>
-        </div>
-
-        <h2 class="text-3xl sm:text-4xl lg:text-[46px] font-normal sm:font-medium tracking-tight text-white font-display leading-tight">
-          Mulai Proses Pengambilan Seragam Anda Sekarang
-        </h2>
-
-        <p class="text-white/85 text-sm sm:text-base lg:text-[17px] font-sans leading-relaxed max-w-2xl mx-auto">
-          Masuk ke portal untuk mengisi atau memperbarui ukuran seragam, memantau status eligibility, mengecek jadwal sesi, dan mengunduh Kode QR resmi.
-        </p>
-
-        <div class="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3.5">
-          <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-center px-8 h-[52px] bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] rounded-full font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all active:scale-95 group">
-            <span>{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}</span>
-            <svg class="w-4 h-4 sm:w-5 sm:h-5 ml-2.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
-          </a>
-        </div>
-      </div>
     </div>
   </section>
 
