@@ -247,7 +247,7 @@
       <!-- Desktop Auth CTA -->
       <div class="hidden lg:flex items-center gap-3">
         <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-center px-7 py-2.5 text-sm font-bold text-[#171717] bg-[#D4A83A] hover:bg-[#B8902E] active:scale-95 rounded-full shadow-sm hover:shadow transition-all">
-          Login Sekarang
+          {{ auth()->check() ? 'Dashboard' : 'Login' }}
         </a>
       </div>
 
@@ -269,7 +269,7 @@
         </div>
         <div class="pt-3 border-t border-gray-100">
           <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="w-full flex items-center justify-center gap-2 py-3 text-center text-sm font-bold text-[#171717] bg-[#D4A83A] hover:bg-[#B8902E] active:scale-95 rounded-full shadow-sm transition-all">
-            <span>Login Sekarang</span>
+            <span>{{ auth()->check() ? 'Dashboard' : 'Login' }}</span>
             <i class="fa-solid fa-arrow-right text-xs"></i>
           </a>
         </div>
@@ -303,9 +303,9 @@
           <!-- CTA Buttons (Pinned to bottom at exact Y level) -->
           <div class="relative z-10 flex items-center gap-2.5 pt-6">
             <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-center px-7 sm:px-8 h-[52px] bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] rounded-full font-bold text-sm sm:text-base shadow-sm transition-all active:scale-95">
-              <span>{{ auth()->check() ? 'Buka Dashboard' : 'Masuk ke Dashboard' }}</span>
+              <span>{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}</span>
             </a>
-            <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="w-[52px] h-[52px] rounded-full bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] flex items-center justify-center shadow-sm transition-all active:scale-95 shrink-0" aria-label="Buka Dashboard">
+            <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="w-[52px] h-[52px] rounded-full bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] flex items-center justify-center shadow-sm transition-all active:scale-95 shrink-0" aria-label="{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}">
               <svg class="w-4 h-4 sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="7" y1="17" x2="17" y2="7"></line>
                 <polyline points="7 7 17 7 17 17"></polyline>
@@ -960,7 +960,7 @@
 
         <div class="pt-3 flex flex-col sm:flex-row items-center justify-center gap-3.5">
           <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-center px-8 h-[52px] bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] rounded-full font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transition-all active:scale-95 group">
-            <span>{{ auth()->check() ? 'Buka Dashboard Saya' : 'Masuk ke Portal Sekarang' }}</span>
+            <span>{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}</span>
             <svg class="w-4 h-4 sm:w-5 sm:h-5 ml-2.5 transition-transform group-hover:translate-x-1" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
