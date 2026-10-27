@@ -17,20 +17,23 @@ use Illuminate\Support\Facades\DB;
 
 class StudentSizeService
 {
-    public function getEntitlementItems(Student $student): Collection
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Item>
+     */
+    public function getEntitlementItems(Student $student): \Illuminate\Database\Eloquent\Collection
     {
         if (! $student->entitlement_code) {
-            return collect();
+            return new \Illuminate\Database\Eloquent\Collection;
         }
 
         $entitlement = Entitlement::where('code', $student->entitlement_code)
             ->where('is_active', true)
             ->where('student_level', $student->student_level)
-            ->with(['items.item'])
+            ->with(['items.item.category'])
             ->first();
 
         if (! $entitlement) {
-            return collect();
+            return new \Illuminate\Database\Eloquent\Collection;
         }
 
         $items = $entitlement->items
@@ -38,13 +41,13 @@ class StudentSizeService
             ->filter(fn ($i) => $i && $i->base_code);
 
         if ($items->isEmpty()) {
-            return collect();
+            return new \Illuminate\Database\Eloquent\Collection;
         }
 
         $unique = $items->keyBy('base_code');
 
         $groupItems = Item::whereIn('base_code', $unique->keys())
-            ->with('variants')
+            ->with(['variants', 'category'])
             ->get()
             ->groupBy('base_code');
 
@@ -52,9 +55,14 @@ class StudentSizeService
             $group = $groupItems->get($item->base_code, collect());
             $allVariants = $group->flatMap->variants->unique('size')->values();
             $item->setRelation('variants', $allVariants);
+            if ($first = $group->first()) {
+                if ($first->relationLoaded('category') && $first->category) {
+                    $item->setRelation('category', $first->category);
+                }
+            }
         });
 
-        return $unique->values();
+        return new \Illuminate\Database\Eloquent\Collection($unique->values());
     }
 
     public function getEventsForStudent(Student $student): Collection

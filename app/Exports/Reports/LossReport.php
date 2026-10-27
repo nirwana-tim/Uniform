@@ -4,6 +4,7 @@ namespace App\Exports\Reports;
 
 use App\Exports\BaseExport;
 use App\Models\StockOpnameItem;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -29,15 +30,15 @@ class LossReport extends BaseExport implements FromCollection, WithCustomStartCe
         return 'A4';
     }
 
-    public function collection(): \Illuminate\Support\EloquentCollection
+    public function collection(): Collection
     {
         $query = StockOpnameItem::select(
             'items.name as item_name',
             'item_categories.label as category_name',
             'item_categories.code as category_code',
             'items.hpp',
-            DB::raw('SUM(CASE WHEN stock_opname_items.computed_variance < 0 THEN ABS(stock_opname_items.computed_variance) ELSE 0 END) as qty_loss'),
-            DB::raw('SUM(CASE WHEN stock_opname_items.computed_variance > 0 THEN stock_opname_items.computed_variance ELSE 0 END) as qty_surplus'),
+            DB::raw('SUM(CASE WHEN (stock_opname_items.physical_quantity - stock_opname_items.system_quantity) < 0 THEN (stock_opname_items.system_quantity - stock_opname_items.physical_quantity) ELSE 0 END) as qty_loss'),
+            DB::raw('SUM(CASE WHEN (stock_opname_items.physical_quantity - stock_opname_items.system_quantity) > 0 THEN (stock_opname_items.physical_quantity - stock_opname_items.system_quantity) ELSE 0 END) as qty_surplus'),
             DB::raw('COUNT(DISTINCT stock_opname_items.stock_opname_id) as opname_count')
         )
             ->join('items', 'stock_opname_items.item_id', '=', 'items.id')

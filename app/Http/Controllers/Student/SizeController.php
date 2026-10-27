@@ -10,6 +10,7 @@ use App\Models\SizeEventSubmission;
 use App\Models\Student;
 use App\Services\QrCodeService;
 use App\Services\StudentSizeService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -151,7 +152,11 @@ class SizeController extends Controller
         $student->load(['activeSizeProfile.sizeItems.item', 'studyProgram', 'generation']);
 
         $entitlementItems = $this->sizeService->getEntitlementItems($student);
-        $entitlementItems->load('category');
+        if ($entitlementItems instanceof Collection) {
+            $entitlementItems->loadMissing('category');
+        } else {
+            $entitlementItems->each(fn ($item) => method_exists($item, 'loadMissing') ? $item->loadMissing('category') : null);
+        }
 
         $receivedTransactions = DistributionTransaction::with(['items.item', 'schedule'])
             ->where('student_id', $student->id)

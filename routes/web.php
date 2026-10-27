@@ -113,6 +113,7 @@ Route::middleware(['auth', 'password.changed', 'role:super_admin|admin', 'thrott
 
 Route::middleware(['auth', 'password.changed', 'role:super_admin|admin', 'throttle:30,1'])->prefix('report')->name('report.')->group(function () {
     Route::get('/', [ReportController::class, 'index'])->name('index');
+    Route::get('sales-dashboard', [ReportController::class, 'salesDashboard'])->name('sales-dashboard');
     Route::get('distribution', [ReportController::class, 'distribution'])->name('distribution');
     Route::get('distribution-recap', [ReportController::class, 'distributionRecap'])->name('distribution-recap');
     Route::get('inventory', [ReportController::class, 'inventory'])->name('inventory');

@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Dokumentasi Audit dan Rumus Horizon-UniStock</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 18mm 20mm 18mm;
+            @bottom-right {
+                content: counter(page);
+            }
+        }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+            color: #1f2937;
+            line-height: 1.5;
+            font-size: 10.5pt;
+            background: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            border-bottom: 3px solid #980416;
+            padding-bottom: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        .header h1 {
+            color: #980416;
+            font-size: 20pt;
+            margin: 0 0 4px 0;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .header .subtitle {
+            font-size: 11pt;
+            color: #4b5563;
+            font-weight: 500;
+            margin: 0;
+        }
+        .header .meta {
+            text-align: right;
+            font-size: 8.5pt;
+            color: #6b7280;
+        }
+        .badge {
+            display: inline-block;
+            background: #fef2f2;
+            color: #980416;
+            border: 1px solid #fecaca;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        h2 {
+            color: #980416;
+            font-size: 13.5pt;
+            border-bottom: 1.5px solid #e5e7eb;
+            padding-bottom: 6px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        h3 {
+            color: #111827;
+            font-size: 11.5pt;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        p {
+            margin: 0 0 10px 0;
+            text-align: justify;
+        }
+        .formula-box {
+            background-color: #f9fafb;
+            border-left: 4px solid #980416;
+            border-radius: 0 6px 6px 0;
+            padding: 10px 14px;
+            margin: 10px 0 14px 0;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 9.5pt;
+            color: #111827;
+        }
+        .formula-box .title {
+            font-weight: bold;
+            color: #980416;
+            margin-bottom: 4px;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0 18px 0;
+            font-size: 9pt;
+        }
+        table th {
+            background-color: #980416;
+            color: #ffffff;
+            font-weight: 600;
+            text-align: left;
+            padding: 7px 10px;
+            border: 1px solid #980416;
+        }
+        table td {
+            padding: 6px 10px;
+            border: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+        table tr:nth-child(even) td {
+            background-color: #fdf8f8;
+        }
+        .status-ok {
+            color: #047857;
+            font-weight: bold;
+        }
+        .note-box {
+            background-color: #fef3c7;
+            border-left: 4px solid #d97706;
+            padding: 8px 12px;
+            margin: 12px 0;
+            font-size: 9pt;
+            border-radius: 0 4px 4px 0;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+        ul, ol {
+            margin: 0 0 12px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 4px;
+        }
+        .footer {
+            margin-top: 30px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 8px;
+            font-size: 8pt;
+            color: #9ca3af;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <span class="badge">Technical & Audit Documentation</span>
+            <h1>Horizon-UniStock</h1>
+            <p class="subtitle">Laporan Audit Teknis, Arsitektur Kode, dan Formulasi Keuangan / Inventaris</p>
+        </div>
+        <div class="meta">
+            <strong>Universitas Horizon</strong><br>
+            Sistem Distribusi Seragam & Atribut<br>
+            Tanggal Audit: 27 Oktober 2026
+        </div>
+    </div>
+
+    <h2>1. Ringkasan Eksekutif & Hasil Audit Modul Pelaporan</h2>
+    <p>
+        Pemeriksaan menyeluruh terhadap sistem pelaporan inventaris dan distribusi <strong>Horizon-UniStock</strong> telah dilakukan. Sistem dibangun di atas framework <strong>Laravel 12 (PHP 8.5)</strong> dengan arsitektur <em>Thin Controller, Fat Service</em> dan integrasi spreadsheet <strong>Maatwebsite Excel</strong>.
+    </p>
+    <p>
+        Berdasarkan audit teknis, ditemukan beberapa kesalahan fatal (*fatal exceptions*) yang berpotensi melumpuhkan proses pelaporan di level produksi. Seluruh kendala tersebut telah diidentifikasi, diperbaiki, dan diverifikasi melalui pengujian otomatis.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%;">No</th>
+                <th style="width: 25%;">Komponen / File</th>
+                <th style="width: 45%;">Temuan Audit & Potensi Dampak</th>
+                <th style="width: 25%;">Status Perbaikan</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>1</td>
+                <td><code>SizeRecapReport.php</code></td>
+                <td><strong>Fatal Syntax Error:</strong> Hilang kurung kurawal penutup <code>}</code> pada method <code>styles()</code>. Menyebabkan <em>Parse Error</em> dan crash HTTP 500 saat unduh rekap ukuran.</td>
+                <td><span class="status-ok">✔ Fixed & Tested</span></td>
+            </tr>
+            <tr>
+                <td>2</td>
+                <td><code>LossReport.php</code></td>
+                <td><strong>Fatal Class Error:</strong> Penggunaan return type hint fiktif <code>\Illuminate\Support\EloquentCollection</code> yang memicu fatal error di PHP 8.5.</td>
+                <td><span class="status-ok">✔ Fixed to Collection</span></td>
+            </tr>
+            <tr>
+                <td>3</td>
+                <td><code>LossReport.php</code> & <code>ReportService.php</code></td>
+                <td><strong>SQL Column Not Found:</strong> Query memanggil kolom <code>computed_variance</code> yang tidak ada di skema database (variance merupakan model accessor).</td>
+                <td><span class="status-ok">✔ Fixed SQL Calculation</span></td>
+            </tr>
+            <tr>
+                <td>4</td>
+                <td><code>ReportController.php</code> & <code>web.php</code></td>
+                <td><strong>Orphaned Feature:</strong> Modul <em>Sales & Stock Analytics Dashboard</em> (dengan 6 grafik Chart.js dan KPI) telah dibuat namun routenya belum terdaftar di <code>web.php</code>.</td>
+                <td><span class="status-ok">✔ Registered & Connected</span></td>
+            </tr>
+            <tr>
+                <td>5</td>
+                <td><code>StockCardReport.php</code></td>
+                <td><strong>Inakurasi Saldo Awal:</strong> Filter tanggal (<code>start_date</code>) mengabaikan saldo mutasi sebelumnya, sehingga saldo awal selalu dimulai dari 0.</td>
+                <td><span class="status-ok">✔ Historical Balance Added</span></td>
+            </tr>
+            <tr>
+                <td>6</td>
+                <td><code>gpm-cost.blade.php</code></td>
+                <td><strong>Inkonsistensi Layout:</strong> Masih menggunakan layout bawaan scaffolding Breeze (<code>py-12</code>, <code>max-w-7xl</code>) bukannya komponen standar <code>&lt;x-page-header&gt;</code>.</td>
+                <td><span class="status-ok">✔ Standardized to Maroon UI</span></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="note-box">
+        <strong>Bukti Pengujian Otomatis (PHPUnit Feature Test):</strong><br>
+        Telah dibuat test suite <code>tests/Feature/ReportAuditTest.php</code> mencakup 13 skenario uji (semua endpoint laporan dan ekspor excel). Seluruh tes berhasil lulus (<strong>13 passed, 24 assertions, 100% success</strong>).
+    </div>
+
+    <div class="page-break"></div>
+
+    <h2>2. Dokumentasi Rumus Lengkap (Formulasi Sistem)</h2>
+    <p>
+        Bagian ini menjelaskan secara matematis dan logis seluruh rumus yang digunakan dalam modul keuangan, persediaan, dan distribusi barang di lingkungan Horizon-UniStock.
+    </p>
+
+    <h3>A. Gross Profit Margin (GPM) & Laba Kotor</h3>
+    <p>
+        Digunakan pada menu <strong>Laporan GPM / Cost</strong> dan export spreadsheet <code>Laporan_GPM.xlsx</code> untuk menganalisis keuntungan margin seragam per item dan per kategori.
+    </p>
+
+    <div class="formula-box">
+        <div class="title">1. Total Pendapatan (Revenue)</div>
+        Total Revenue = &Sigma; (Qty Terjual &times; Harga Jual Distribusi)
+    </div>
+
+    <div class="formula-box">
+        <div class="title">2. Total Modal / HPP (COGS - Cost of Goods Sold)</div>
+        Total COGS = &Sigma; (Qty Terjual &times; HPP Satuan)
+    </div>
+
+    <div class="formula-box">
+        <div class="title">3. Laba Kotor Riil (Gross Profit)</div>
+        Laba Kotor = Total Revenue - Total COGS
+    </div>
+
+    <div class="formula-box">
+        <div class="title">4. Persentase Margin Laba Kotor (GPM %)</div>
+        GPM (%) = (Laba Kotor / Total Revenue) &times; 100%
+        <br><br>
+        <em>Catatan: Jika Total Revenue = 0, maka GPM % = 0% (proteksi division by zero).</em>
+    </div>
+
+    <p style="font-size: 9pt; color: #4b5563;">
+        <em>Perbedaan Finansial:</em> Sistem menggunakan rumus <strong>Margin</strong> (dibagi terhadap Pendapatan), bukan <strong>Markup</strong> (dibagi terhadap Modal/HPP). Hal ini sesuai dengan standar akuntansi manajerial perguruan tinggi.
+    </p>
+
+    <h3>B. Perhitungan HPP Rata-rata Bergerak (Moving Weighted Average)</h3>
+    <p>
+        Diterapkan di <code>StockService::upsertBalance</code> ketika barang baru diterima dari vendor. Jika ada barang baru masuk dengan harga satuan yang berbeda dari saldo lama di gudang, sistem memperbarui nilai HPP secara proporsional:
+    </p>
+
+    <div class="formula-box">
+        <div class="title">Moving Weighted Average Cost</div>
+        HPP Rata-rata Baru = [(Qty Lama &times; HPP Lama) + (Qty Masuk &times; HPP Masuk)] / (Qty Lama + Qty Masuk)
+    </div>
+
+    <h3>C. Pemotongan Stok dan HPP FIFO (First-In, First-Out)</h3>
+    <p>
+        Diterapkan di <code>StockService::consumeBatchesFifo</code> saat petugas pos distribusi membagikan barang kepada mahasiswa. Barang yang diserahkan otomatis memotong batch penerimaan tertua:
+    </p>
+
+    <div class="formula-box">
+        <div class="title">Blended FIFO HPP</div>
+        Blended HPP = [&Sigma; (Qty Diambil per Batch &times; HPP Batch)] / Total Qty yang Diambil
+    </div>
+
+    <div class="page-break"></div>
+
+    <h3>D. Rumus Susut Stok & Selisih Opname Fisik (Stock Loss & Gain)</h3>
+    <p>
+        Diterapkan pada modul <strong>Stock Opname</strong> dan <strong>Laporan Susut Stok (Loss Report)</strong> untuk menghitung selisih fisik di rak penyimpanan dibandingkan saldo pada database:
+    </p>
+
+    <div class="formula-box">
+        <div class="title">1. Selisih Kuantitas (Variance)</div>
+        Variance = Stok Fisik - Stok Sistem
+    </div>
+
+    <div class="formula-box">
+        <div class="title">2. Kuantitas & Nilai Susut (Loss / Hilang) — Jika Variance &lt; 0</div>
+        Qty Loss = Stok Sistem - Stok Fisik
+        <br>
+        Nilai Kerugian (Rp) = Qty Loss &times; HPP Satuan
+    </div>
+
+    <div class="formula-box">
+        <div class="title">3. Kuantitas & Nilai Surplus (Kelebihan) — Jika Variance &gt; 0</div>
+        Qty Surplus = Stok Fisik - Stok Sistem
+        <br>
+        Nilai Kelebihan (Rp) = Qty Surplus &times; HPP Satuan
+    </div>
+
+    <div class="formula-box">
+        <div class="title">4. Dampak Bersih Keuangan (Net Loss / Gain)</div>
+        Net Loss (Rp) = Total Surplus (Rp) - Total Kerugian (Rp)
+        <br>
+        <em>Hasil negatif menunjukkan kerugian riil akibat penyusutan barang di gudang.</em>
+    </div>
+
+    <h3>E. Rumus Kartu Stok (Running Balance / Saldo Berjalan)</h3>
+    <p>
+        Diterapkan pada <code>StockCardReport.php</code> untuk memastikan kartu mutasi barang menyajikan saldo berkelanjutan yang akurat:
+    </p>
+
+    <div class="formula-box">
+        <div class="title">1. Saldo Awal Periode (Opening Balance)</div>
+        Saldo Awal = &Sigma; Mutasi IN (sebelum periode) - &Sigma; Mutasi OUT (sebelum periode)
+    </div>
+
+    <div class="formula-box">
+        <div class="title">2. Saldo Berjalan Tiap Transaksi</div>
+        Jika Mutasi IN  : Saldo Berjalan = Saldo Sebelumnya + Qty Masuk
+        <br>
+        Jika Mutasi OUT : Saldo Berjalan = Saldo Sebelumnya - Qty Keluar
+    </div>
+
+    <h3>F. Progres Distribusi Mahasiswa</h3>
+    <p>
+        Diterapkan di <code>ReportService::getDistributionRecap</code> dan view <code>report.distribution-recap</code>:
+    </p>
+
+    <div class="formula-box">
+        <div class="title">Persentase Ketercapaian Pembagian</div>
+        Sisa Mahasiswa Belum Ambil = Total Mahasiswa Eligible - Total Mahasiswa Sudah Mengambil
+        <br><br>
+        Progres Distribusi (%) = (Total Mahasiswa Sudah Mengambil / Total Mahasiswa Eligible) &times; 100%
+    </div>
+
+    <div class="footer">
+        Horizon-UniStock &bull; Dokumentasi Resmi Audit & Rumus Sistem &bull; Dicetak Otomatis pada 27 Oktober 2026
+    </div>
+
+</body>
+</html>

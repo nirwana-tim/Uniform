@@ -37,6 +37,26 @@
             </form>
         </div>
 
+        {{-- Sales & Stock Analytics --}}
+        <div class="bg-white rounded-xl border border-primary-200 shadow-sm p-5">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-primary-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                    </svg>
+                </div>
+                <h3 class="ml-4 text-lg font-semibold text-gray-900">Sales Analytics</h3>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Interactive charts: unit sold, revenue trend, and stock valuation.</p>
+            <a href="{{ route('report.sales-dashboard') }}" class="w-full bg-primary-700 text-white hover:bg-primary-800 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+                </svg>
+                Open Analytics
+            </a>
+        </div>
+
         {{-- Distribution Recap --}}
         <div class="bg-white rounded-xl border border-primary-200 shadow-sm p-5">
             <div class="flex items-center mb-4">

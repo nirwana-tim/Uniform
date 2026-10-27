@@ -122,11 +122,12 @@ class SizeRecapReport extends BaseExport implements FromCollection, WithCustomSt
 
         // Align right for quantity column
         if ($lastRow >= $dataStart) {
-                $sheet->getStyle('E'.$dataStart.':E'.$lastRow)->applyFromArray([
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_RIGHT,
-            ],
-        ]);
+            $sheet->getStyle('E'.$dataStart.':E'.$lastRow)->applyFromArray([
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_RIGHT,
+                ],
+            ]);
+        }
 
         $this->setColumnWidths($sheet, [
             'A' => 6, 'B' => 20, 'C' => 35, 'D' => 15, 'E' => 25,

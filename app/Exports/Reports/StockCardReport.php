@@ -5,6 +5,7 @@ namespace App\Exports\Reports;
 use App\Exports\BaseExport;
 use App\Models\Item;
 use App\Models\StockMovement;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -27,7 +28,21 @@ class StockCardReport extends BaseExport implements FromQuery, WithChunkReading,
         private string $itemCode,
         private ?string $startDate = null,
         private ?string $endDate = null
-    ) {}
+    ) {
+        if ($this->startDate) {
+            $itemIds = Item::where('code', $this->itemCode)->pluck('id');
+            $startDateTime = Carbon::parse($this->startDate)->startOfDay();
+            $inBefore = StockMovement::whereIn('item_id', $itemIds)
+                ->where('created_at', '<', $startDateTime)
+                ->where('type', 'IN')
+                ->sum('quantity');
+            $outBefore = StockMovement::whereIn('item_id', $itemIds)
+                ->where('created_at', '<', $startDateTime)
+                ->where('type', 'OUT')
+                ->sum('quantity');
+            $this->runningBalance = (int) ($inBefore - $outBefore);
+        }
+    }
 
     public function startCell(): string
     {
@@ -42,10 +57,10 @@ class StockCardReport extends BaseExport implements FromQuery, WithChunkReading,
             ->orderBy('id');
 
         if ($this->startDate) {
-            $movements->where('created_at', '>=', \Carbon\Carbon::parse($this->startDate)->startOfDay());
+            $movements->where('created_at', '>=', Carbon::parse($this->startDate)->startOfDay());
         }
         if ($this->endDate) {
-            $movements->where('created_at', '<=', \Carbon\Carbon::parse($this->endDate)->endOfDay());
+            $movements->where('created_at', '<=', Carbon::parse($this->endDate)->endOfDay());
         }
 
         return $movements;

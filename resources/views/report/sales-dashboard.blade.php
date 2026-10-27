@@ -7,7 +7,11 @@
         </x-slot>
     </x-page-header>
 
-    <div x-data="salesDashboard" class="space-y-6">
+    <script>
+        window.DASHBOARD_URL = @json(route('report.sales-dashboard'));
+    </script>
+
+    <div x-data="salesDashboard" x-init="startDate = '{{ $defaultStart }}'; endDate = '{{ $defaultEnd }}';" class="space-y-6">
         {{-- Section 1: Interactive Filters --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <h3 class="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
