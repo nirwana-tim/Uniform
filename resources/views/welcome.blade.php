@@ -632,11 +632,11 @@
       <div id="timelineContainer" class="relative w-full">
         
         <!-- Central vertical timeline line for Desktop (center at 50%) -->
-        <div class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
+        <div id="timelineBaseDesktop" class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
         <div id="timelineProgressDesktop" class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-gradient-to-b from-[#980517] via-[#980517] to-[#D4A83A] -translate-x-1/2 z-0 rounded-full origin-top" style="transform: scaleY(0);"></div>
 
         <!-- Left vertical timeline line for Mobile & Tablet (matching Tablet 834px & Mobile 402px SVGs) -->
-        <div class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
+        <div id="timelineBaseMobile" class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
         <div id="timelineProgressMobile" class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-gradient-to-b from-[#980517] via-[#980517] to-[#D4A83A] -translate-x-1/2 z-0 rounded-full origin-top" style="transform: scaleY(0);"></div>
 
         <div class="space-y-12 sm:space-y-16 lg:space-y-20">
@@ -688,11 +688,11 @@
               <p class="text-gray-600 text-xs sm:text-sm lg:text-[15px] leading-relaxed font-sans max-w-lg">
                 Login kembali ke HorizonU Uniform dan isi ukuran untuk event pembagian seragam yang tersedia. Setelah itu, pastikan Kode QR pengambilan telah Anda terima dan siap ditunjukkan kepada petugas.
               </p>
-              <!-- Photo Stack (img_6.webp) -->
+              <!-- Photo Stack (img_7.webp - QR Code Dashboard) -->
               <div class="pt-2 w-full flex justify-start">
                 <div class="relative w-full max-w-[340px] sm:max-w-sm lg:max-w-[420px] photo-stack-base text-left">
                   <div class="photo-stack-img bg-white shadow-xl">
-                    <img src="{{ asset('assets/img') }}/img_6.webp" alt="Dapatkan Kode QR Pengambilan" class="w-full h-48 sm:h-60 lg:h-[268px] object-cover">
+                    <img src="{{ asset('assets/img') }}/img_7.webp" alt="Dapatkan Kode QR Pengambilan" class="w-full h-48 sm:h-60 lg:h-[268px] object-cover">
                   </div>
                 </div>
               </div>
@@ -800,11 +800,11 @@
               <p class="text-gray-600 text-xs sm:text-sm lg:text-[15px] leading-relaxed font-sans max-w-lg">
                 Pastikan ukuran dan jenis seragam yang Anda terima sudah sesuai dengan data yang tercatat di HorizonU Uniform sebelum meninggalkan lokasi.
               </p>
-              <!-- Photo Stack (img_7.webp) -->
+              <!-- Photo Stack (img_6.webp - Periksa Seragam di Loket) -->
               <div class="pt-2">
                 <div class="relative w-full max-w-[340px] sm:max-w-sm lg:max-w-[420px] photo-stack-base">
                   <div class="photo-stack-img bg-white shadow-xl">
-                    <img src="{{ asset('assets/img') }}/img_7.webp" alt="Periksa Seragam yang Diterima" class="w-full h-48 sm:h-60 lg:h-[267px] object-cover">
+                    <img src="{{ asset('assets/img') }}/img_6.webp" alt="Periksa Seragam yang Diterima" class="w-full h-48 sm:h-60 lg:h-[267px] object-cover">
                   </div>
                 </div>
               </div>
@@ -1266,6 +1266,8 @@
       const container = document.getElementById('timelineContainer');
       const progressDesktop = document.getElementById('timelineProgressDesktop');
       const progressMobile = document.getElementById('timelineProgressMobile');
+      const baseDesktop = document.getElementById('timelineBaseDesktop');
+      const baseMobile = document.getElementById('timelineBaseMobile');
       const nodes = document.querySelectorAll('.timeline-node');
       const steps = document.querySelectorAll('.timeline-step');
 
@@ -1277,18 +1279,43 @@
       let currentProgress = 0;
       let isRunning = false;
 
+      function setLineDimensions() {
+        if (!nodes.length) return;
+        const firstNode = nodes[0];
+        const lastNode = nodes[nodes.length - 1];
+        const containerRect = container.getBoundingClientRect();
+        const firstRect = firstNode.getBoundingClientRect();
+        const lastRect = lastNode.getBoundingClientRect();
+
+        const topOffset = (firstRect.top - containerRect.top) + (firstRect.height / 2);
+        const totalLineHeight = (lastRect.top + lastRect.height / 2) - (firstRect.top + firstRect.height / 2);
+
+        [progressDesktop, progressMobile, baseDesktop, baseMobile].forEach(el => {
+          if (el) {
+            el.style.top = `${topOffset}px`;
+            el.style.height = `${Math.max(0, totalLineHeight)}px`;
+            el.style.bottom = 'auto';
+          }
+        });
+      }
+
       function updateTarget() {
-        const rect = container.getBoundingClientRect();
+        if (!nodes.length) return;
+        const firstNode = nodes[0];
+        const lastNode = nodes[nodes.length - 1];
+        const firstRect = firstNode.getBoundingClientRect();
+        const lastRect = lastNode.getBoundingClientRect();
         const windowHeight = window.innerHeight;
 
         // Dynamic trigger point around 60% of viewport
         const triggerY = windowHeight * 0.60;
-        const startY = rect.top;
-        const totalHeight = rect.height;
+        const startY = firstRect.top + firstRect.height / 2;
+        const endY = lastRect.top + lastRect.height / 2;
+        const totalDistance = Math.max(1, endY - startY);
 
-        if (startY < triggerY) {
+        if (triggerY > startY) {
           const scrolled = triggerY - startY;
-          targetProgress = Math.min(1, Math.max(0, scrolled / totalHeight));
+          targetProgress = Math.min(1, Math.max(0, scrolled / totalDistance));
         } else {
           targetProgress = 0;
         }
@@ -1331,10 +1358,17 @@
         }
       }
 
+      function onResize() {
+        setLineDimensions();
+        updateTarget();
+      }
+
       window.addEventListener('scroll', updateTarget, { passive: true });
-      window.addEventListener('resize', updateTarget, { passive: true });
+      window.addEventListener('resize', onResize, { passive: true });
+      window.addEventListener('load', onResize, { passive: true });
 
       // Run on page load
+      setLineDimensions();
       updateTarget();
     })();
   </script>
