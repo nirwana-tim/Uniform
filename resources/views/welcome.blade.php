@@ -210,6 +210,42 @@
       will-change: opacity, transform;
       display: inline-block;
     }
+
+    /* Scroll-Driven Interactive Timeline Styles */
+    #timelineProgressDesktop,
+    #timelineProgressMobile {
+      will-change: transform;
+      transform-origin: top center;
+    }
+
+    html.timeline-ready .timeline-node {
+      transform: translate(-50%, 0) scale(0.85);
+      opacity: 0.35;
+      transition: transform 0.6s cubic-bezier(0.34, 1.45, 0.64, 1), opacity 0.5s ease, filter 0.5s ease;
+      will-change: transform, opacity, filter;
+    }
+    html.timeline-ready .timeline-node svg path {
+      fill: #C9A2A6;
+      transition: fill 0.45s ease;
+    }
+    html.timeline-ready .timeline-node.active {
+      transform: translate(-50%, 0) scale(1.06);
+      opacity: 1;
+      filter: drop-shadow(0 6px 14px rgba(152, 5, 23, 0.35)) drop-shadow(0 0 12px rgba(212, 168, 58, 0.45));
+    }
+    html.timeline-ready .timeline-node.active svg path {
+      fill: #980517;
+    }
+    html.timeline-ready .timeline-step {
+      opacity: 0.5;
+      transform: translateY(10px);
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: opacity, transform;
+    }
+    html.timeline-ready .timeline-step.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
   </style>
 </head>
 <body class="antialiased overscroll-none">
@@ -374,8 +410,8 @@
     </section>
 
   <!-- ================= TENTANG KAMI SECTION ================= -->
-  <section id="tentang-kami" class="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-[1440px] mx-auto scroll-mt-20 lg:scroll-mt-24">
-    <div class="relative bg-[#980517] rounded-[12px] sm:rounded-[16px] overflow-hidden text-white shadow-xl flex flex-col md:flex-row md:items-center min-h-[460px] md:min-h-[360px] lg:h-[400px]">
+  <section id="tentang-kami" class="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-[1840px] mx-auto scroll-mt-20 lg:scroll-mt-24">
+    <div class="relative bg-[#980517] rounded-[14px] sm:rounded-[20px] lg:rounded-[24px] overflow-hidden text-white shadow-xl flex flex-col md:flex-row md:items-center min-h-[460px] md:min-h-[380px] lg:min-h-[420px] xl:min-h-[460px]">
       
       <!-- Mobile Top Graphic (Vertical composition matching Figma Mobile Landing Page(5).png) -->
       <div class="md:hidden w-full relative shrink-0">
@@ -386,7 +422,7 @@
       <img src="{{ asset('assets/img') }}/image 61.webp" alt="Tentang HorizonU Uniform" class="hidden md:block absolute inset-0 w-full h-full object-cover md:object-[35%_center] lg:object-center pointer-events-none select-none z-0">
 
       <!-- Right Content: Golden Badge, Title, and Description positioned cleanly over the maroon backdrop -->
-      <div class="relative z-10 w-full md:w-[50%] lg:w-[48%] md:ml-auto p-6 sm:p-10 lg:p-14 lg:pl-2 space-y-4 lg:space-y-6">
+      <div class="relative z-10 w-full md:w-[50%] lg:w-[48%] md:ml-auto p-6 sm:p-10 lg:p-14 lg:pl-2 xl:p-16 space-y-4 lg:space-y-6">
         <div class="badge-capsule self-start">
           <svg class="w-5 h-5 text-[#D4A83A] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/>
@@ -396,11 +432,11 @@
           <span>Tentang Kami</span>
         </div>
 
-        <h2 class="text-2xl sm:text-3xl lg:text-[40px] font-normal sm:font-medium tracking-tight text-white leading-tight font-display">
+        <h2 class="text-2xl sm:text-3xl lg:text-[40px] xl:text-[44px] font-normal sm:font-medium tracking-tight text-white leading-tight font-display">
           Apa Itu HorizonU Uniform?
         </h2>
 
-        <p class="text-xs sm:text-sm lg:text-[15px] text-white/95 leading-relaxed font-normal max-w-[580px] font-sans">
+        <p class="text-xs sm:text-sm lg:text-[15px] xl:text-base text-white/95 leading-relaxed font-normal max-w-[580px] xl:max-w-[640px] font-sans">
           HorizonU Uniform hadir untuk mempermudah mahasiswa dalam mendapatkan informasi dan melakukan pengambilan seragam. Dengan seluruh kebutuhan tersedia dalam satu platform, mahasiswa dapat mengetahui status pengambilan, mengakses QR Code, dan mengikuti proses distribusi dengan lebih mudah dan teratur.
         </p>
       </div>
@@ -593,22 +629,25 @@
       </div>
 
       <!-- Timeline Container -->
-      <div class="relative w-full">
+      <div id="timelineContainer" class="relative w-full">
         
         <!-- Central vertical timeline line for Desktop (center at 50%) -->
-        <div class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-[#980517] -translate-x-1/2 z-0"></div>
+        <div class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
+        <div id="timelineProgressDesktop" class="hidden lg:block absolute left-1/2 top-4 bottom-10 w-[3px] bg-gradient-to-b from-[#980517] via-[#980517] to-[#D4A83A] -translate-x-1/2 z-0 rounded-full origin-top" style="transform: scaleY(0);"></div>
+
         <!-- Left vertical timeline line for Mobile & Tablet (matching Tablet 834px & Mobile 402px SVGs) -->
-        <div class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-[#980517] -translate-x-1/2 z-0"></div>
+        <div class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-[#F0DADC] -translate-x-1/2 z-0 rounded-full"></div>
+        <div id="timelineProgressMobile" class="lg:hidden absolute left-5 sm:left-7 top-4 bottom-10 w-[3px] bg-gradient-to-b from-[#980517] via-[#980517] to-[#D4A83A] -translate-x-1/2 z-0 rounded-full origin-top" style="transform: scaleY(0);"></div>
 
         <div class="space-y-12 sm:space-y-16 lg:space-y-20">
 
           <!-- ================= STEP 1: Desktop Right (x=783), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Desktop Left: Empty Placeholder (Col 1-6) -->
             <div class="hidden lg:block lg:col-span-6"></div>
             
             <!-- Timeline Leaf Node (Exact vector marker matching Figma SVG) -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -637,7 +676,7 @@
           </div>
 
           <!-- ================= STEP 2: Desktop Left (x=64), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Content Card: Left side on Desktop (Col 1-6), Placed after line on Mobile/Tablet -->
             <div class="pl-12 sm:pl-16 lg:pl-0 lg:pr-10 lg:col-span-6 space-y-3.5 sm:space-y-4 text-left flex flex-col items-start">
               <div class="inline-block px-3.5 py-1 rounded-full border border-[#171717] text-[#171717] text-xs font-bold font-sans">
@@ -660,7 +699,7 @@
             </div>
 
             <!-- Timeline Leaf Node (Exact vector marker matching Figma SVG) -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -671,12 +710,12 @@
           </div>
 
           <!-- ================= STEP 3: Desktop Right (x=783), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Desktop Left: Empty Placeholder (Col 1-6) -->
             <div class="hidden lg:block lg:col-span-6"></div>
             
             <!-- Timeline Leaf Node -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -705,7 +744,7 @@
           </div>
 
           <!-- ================= STEP 4: Desktop Left (x=64), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Content Card: Left side on Desktop (Col 1-6) -->
             <div class="pl-12 sm:pl-16 lg:pl-0 lg:pr-10 lg:col-span-6 space-y-3.5 sm:space-y-4 text-left flex flex-col items-start">
               <div class="inline-block px-3.5 py-1 rounded-full border border-[#171717] text-[#171717] text-xs font-bold font-sans">
@@ -728,7 +767,7 @@
             </div>
 
             <!-- Timeline Leaf Node -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -739,12 +778,12 @@
           </div>
 
           <!-- ================= STEP 5: Desktop Right (x=783), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Desktop Left: Empty Placeholder (Col 1-6) -->
             <div class="hidden lg:block lg:col-span-6"></div>
             
             <!-- Timeline Leaf Node -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -773,7 +812,7 @@
           </div>
 
           <!-- ================= STEP 6: Desktop Left (x=64), Mobile/Tablet Left-Timeline ================= -->
-          <div class="relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
+          <div class="timeline-step relative lg:grid lg:grid-cols-12 lg:gap-8 items-start">
             <!-- Content Card: Left side on Desktop (Col 1-6) -->
             <div class="pl-12 sm:pl-16 lg:pl-0 lg:pr-10 lg:col-span-6 space-y-3.5 sm:space-y-4 text-left flex flex-col items-start">
               <div class="inline-block px-3.5 py-1 rounded-full border border-[#171717] text-[#171717] text-xs font-bold font-sans">
@@ -796,7 +835,7 @@
             </div>
 
             <!-- Timeline Leaf Node -->
-            <div class="absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
+            <div class="timeline-node absolute left-5 sm:left-7 lg:left-1/2 -translate-x-1/2 top-0.5 sm:top-1 z-20 pointer-events-none flex items-center justify-center">
               <svg width="46" height="61" viewBox="0 0 46 61" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-6 h-8 sm:w-8 sm:h-10 lg:w-[46px] lg:h-[61px] drop-shadow-sm">
                 <path d="M0.029 28.5C-0.963 44.13 23.5 61 23.5 61C23.5 61 46.938 43.91 45.971 28.5C45.083 14.35 23.5 0 23.5 0C23.5 0 0.944 14.1 0.029 28.5Z" fill="#980517"/>
               </svg>
@@ -1220,6 +1259,83 @@
       // Initialize
       updateSlide(0);
       startAutoplay();
+    })();
+
+    // 5. Ultra-Smooth Scroll-Driven Timeline with LERP (Linear Interpolation)
+    (function initTimelineScrollAnimation() {
+      const container = document.getElementById('timelineContainer');
+      const progressDesktop = document.getElementById('timelineProgressDesktop');
+      const progressMobile = document.getElementById('timelineProgressMobile');
+      const nodes = document.querySelectorAll('.timeline-node');
+      const steps = document.querySelectorAll('.timeline-step');
+
+      if (!container || (!progressDesktop && !progressMobile) || !nodes.length) return;
+
+      document.documentElement.classList.add('timeline-ready');
+
+      let targetProgress = 0;
+      let currentProgress = 0;
+      let isRunning = false;
+
+      function updateTarget() {
+        const rect = container.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+
+        // Dynamic trigger point around 60% of viewport
+        const triggerY = windowHeight * 0.60;
+        const startY = rect.top;
+        const totalHeight = rect.height;
+
+        if (startY < triggerY) {
+          const scrolled = triggerY - startY;
+          targetProgress = Math.min(1, Math.max(0, scrolled / totalHeight));
+        } else {
+          targetProgress = 0;
+        }
+
+        // Activate / Deactivate nodes based on trigger position
+        nodes.forEach((node, idx) => {
+          const nodeRect = node.getBoundingClientRect();
+          const nodeCenterY = nodeRect.top + nodeRect.height / 2;
+
+          if (nodeCenterY <= triggerY + 15) {
+            node.classList.add('active');
+            if (steps[idx]) steps[idx].classList.add('active');
+          } else {
+            node.classList.remove('active');
+            if (steps[idx]) steps[idx].classList.remove('active');
+          }
+        });
+
+        if (!isRunning) {
+          isRunning = true;
+          requestAnimationFrame(smoothRenderLoop);
+        }
+      }
+
+      function smoothRenderLoop() {
+        // Silky smooth dampening factor: 0.12 gives fluid momentum between scroll ticks
+        currentProgress += (targetProgress - currentProgress) * 0.12;
+
+        const scaleVal = currentProgress.toFixed(4);
+        if (progressDesktop) progressDesktop.style.transform = `scaleY(${scaleVal})`;
+        if (progressMobile) progressMobile.style.transform = `scaleY(${scaleVal})`;
+
+        if (Math.abs(targetProgress - currentProgress) > 0.0006) {
+          requestAnimationFrame(smoothRenderLoop);
+        } else {
+          currentProgress = targetProgress;
+          if (progressDesktop) progressDesktop.style.transform = `scaleY(${targetProgress})`;
+          if (progressMobile) progressMobile.style.transform = `scaleY(${targetProgress})`;
+          isRunning = false;
+        }
+      }
+
+      window.addEventListener('scroll', updateTarget, { passive: true });
+      window.addEventListener('resize', updateTarget, { passive: true });
+
+      // Run on page load
+      updateTarget();
     })();
   </script>
 </body>
