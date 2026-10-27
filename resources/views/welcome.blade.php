@@ -336,16 +336,16 @@
             </p>
           </div>
 
-          <!-- CTA Buttons (Pinned to bottom at exact Y level) -->
-          <div class="relative z-10 flex items-center gap-2.5 pt-6">
-            <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-center px-7 sm:px-8 h-[52px] bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] rounded-full font-bold text-sm sm:text-base shadow-sm transition-all active:scale-95">
-              <span>{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}</span>
-            </a>
-            <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="w-[52px] h-[52px] rounded-full bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] flex items-center justify-center shadow-sm transition-all active:scale-95 shrink-0" aria-label="{{ auth()->check() ? 'Buka Dashboard' : 'Login Sekarang' }}">
-              <svg class="w-4 h-4 sm:w-[18px] sm:h-[18px]" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="7" y1="17" x2="17" y2="7"></line>
-                <polyline points="7 7 17 7 17 17"></polyline>
-              </svg>
+          <!-- CTA Button (Unified Capsule matching Figma Mobile & Desktop) -->
+          <div class="relative z-10 flex items-center pt-6">
+            <a href="{{ auth()->check() ? route('dashboard') : route('login') }}" class="inline-flex items-center justify-between gap-3 px-6 sm:px-7 h-[48px] sm:h-[52px] bg-[#D4A83A] hover:bg-[#B8902E] text-[#171717] rounded-full font-bold text-sm sm:text-base shadow-sm transition-all active:scale-95 group">
+              <span>{{ auth()->check() ? 'Buka Dashboard' : 'Masuk ke Dashboard' }}</span>
+              <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#171717]/10 flex items-center justify-center shrink-0 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">
+                <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="#171717" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="7" y1="17" x2="17" y2="7"></line>
+                  <polyline points="7 7 17 7 17 17"></polyline>
+                </svg>
+              </span>
             </a>
           </div>
         </div>
@@ -411,7 +411,7 @@
 
   <!-- ================= TENTANG KAMI SECTION ================= -->
   <section id="tentang-kami" class="w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-[1840px] mx-auto scroll-mt-20 lg:scroll-mt-24">
-    <div class="relative bg-[#980517] rounded-[14px] sm:rounded-[20px] lg:rounded-[24px] overflow-hidden text-white shadow-xl flex flex-col md:flex-row md:items-center min-h-[460px] md:min-h-[380px] lg:min-h-[420px] xl:min-h-[460px]">
+    <div class="relative bg-[#980517] rounded-[14px] sm:rounded-[20px] lg:rounded-[24px] overflow-hidden text-white shadow-xl flex flex-col md:flex-row md:items-center min-h-0 md:min-h-[380px] lg:min-h-[420px] xl:min-h-[460px]">
       
       <!-- Mobile Top Graphic (Vertical composition matching Figma Mobile Landing Page(5).png) -->
       <div class="md:hidden w-full relative shrink-0">
@@ -999,7 +999,7 @@
       </div>
 
       <!-- Bottom Bar: Support & Copyright (Responsive order matching Mobile, Tablet, and Desktop Figma designs) -->
-      <div class="pt-6 border-t border-white/10 flex flex-col md:flex-row lg:flex-row items-center justify-between text-xs sm:text-[13px] text-white/80 gap-4">
+      <div class="pt-6 border-t-0 md:border-t border-white/10 flex flex-col md:flex-row lg:flex-row items-center justify-between text-xs sm:text-[13px] text-white/80 gap-4">
         <!-- Support Text: On Mobile (top), On Tablet (right), On Desktop (left) -->
         <p class="text-center md:text-right lg:text-left font-display order-1 md:order-2 lg:order-1">
           Hubungi Finance atau kunjungi One Stop Service untuk bantuan.
