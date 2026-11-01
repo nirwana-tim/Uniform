@@ -106,7 +106,11 @@ class SizeController extends Controller
     {
         $user = auth()->user();
         $student = Student::where('user_id', $user->id)->firstOrFail();
-        $schedule->load(['items.item', 'faculty', 'generation', 'studyProgram']);
+
+        $schedule = DistributionSchedule::whereKey($schedule->id)
+            ->forStudent($student)
+            ->with(['items.item', 'faculty', 'generation', 'studyProgram'])
+            ->firstOrFail();
 
         return view('student.schedules.show', compact('student', 'schedule'));
     }

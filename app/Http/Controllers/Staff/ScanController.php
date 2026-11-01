@@ -33,6 +33,7 @@ class ScanController extends Controller
 
         $todayCount = DistributionTransaction::whereDate('created_at', today())
             ->whereHas('schedule', fn ($q) => $q->where('is_active', true))
+            ->whereIn('status', ['completed', 'partial'])
             ->count();
 
         return view('distribution.scan', compact('activeSchedule', 'staff', 'todayCount'));
@@ -122,6 +123,7 @@ class ScanController extends Controller
             ->map(function ($schedule) use ($student) {
                 $hasTransaction = DistributionTransaction::where('schedule_id', $schedule->id)
                     ->where('student_id', $student->id)
+                    ->whereIn('status', ['completed', 'partial'])
                     ->exists();
                 $schedule->student_has_taken = $hasTransaction;
 
@@ -145,6 +147,7 @@ class ScanController extends Controller
             'notes' => 'nullable|string|max:1000',
             'items' => 'required|array|min:1',
             'items.*.item_id' => 'required|integer|exists:items,id',
+            'items.*.base_code' => 'nullable|string|max:50',
             'items.*.actual_size' => 'required|string|max:10',
             'items.*.expected_size' => 'nullable|string|max:10',
             'items.*.quantity' => 'required|integer|min:1',

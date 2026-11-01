@@ -14,6 +14,7 @@ use App\Models\StudentSizeItem;
 use App\Models\StudentSizeProfile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class StudentSizeService
 {
@@ -28,7 +29,10 @@ class StudentSizeService
 
         $entitlement = Entitlement::where('code', $student->entitlement_code)
             ->where('is_active', true)
-            ->where('student_level', $student->student_level)
+            ->where(function ($q) use ($student) {
+                $q->where('student_level', $student->student_level)
+                    ->orWhereNull('student_level');
+            })
             ->with(['items.item.category'])
             ->first();
 
@@ -94,29 +98,8 @@ class StudentSizeService
     }
 
     /**
-     * Resolve size option labels from stored chips/text to actual item_size labels.
-     *
-     * - "All Size"  → semua flagged sizes dari item_sizes (dari DB, selalu up-to-date)
-     * - Opsi spesifik → filter hanya ukuran yang masih ada di item_sizes
-     */
-    private function resolveOptionLabels(?array $options, string $flagColumn): array
-    {
-        if (empty($options)) {
-            return [];
-        }
-
-        // "All Size" → ambil semua flagged sizes dari item_sizes
-        if (in_array('All Size', $options)) {
-            return $this->resolveAllFlaggedSizes($flagColumn);
-        }
-
-        // Filter hanya yang masih ada di item_sizes dengan flag yang benar
-        return $this->resolveSpecificOptions($options, $flagColumn);
-    }
-
-    /**
      * Ambil semua flagged sizes dari item_sizes.
-     * Jika gagal (misal tabel kosong), fall back ke stored options.
+     * Jika flag belum diisi, fall back ke label varian yang tersedia di gudang.
      */
     private function resolveAllFlaggedSizes(string $flagColumn): array
     {
@@ -129,36 +112,22 @@ class StudentSizeService
             if (! empty($sizes)) {
                 return $sizes;
             }
+
+            $fallback = ItemVariant::whereNotNull('size_label')
+                ->where('size_label', '!=', '')
+                ->distinct()
+                ->orderBy('size')
+                ->pluck('size_label')
+                ->toArray();
+
+            if (! empty($fallback)) {
+                return $fallback;
+            }
         } catch (\Throwable) {
             // Jika error (misal: table belum ada, migrasi belum jalan), lanjut ke fallback
         }
 
-        // Fallback: return stored options (bisa "All Size" literal atau array lain)
         return [];
-    }
-
-    /**
-     * Filter opsi spesifik yang masih ada di item_sizes dengan flag yang benar.
-     * Jika tidak ada yang match, fallback ke stored options.
-     */
-    private function resolveSpecificOptions(array $options, string $flagColumn): array
-    {
-        try {
-            $sizes = ItemSize::where($flagColumn, true)
-                ->whereIn('label', $options)
-                ->orderBy('code')
-                ->pluck('label')
-                ->toArray();
-
-            if (! empty($sizes)) {
-                return $sizes;
-            }
-        } catch (\Throwable) {
-            // Jika error, lanjut ke fallback
-        }
-
-        // Fallback: return stored options (bisa "All Size" literal atau array lain)
-        return $options;
     }
 
     /**
@@ -316,11 +285,19 @@ class StudentSizeService
 
         $options = $this->getSizeOptions($event);
 
-        if (! empty($baju) && ! in_array($baju, $options['baju'], true)) {
+        if (empty($options['baju']) && ! empty($baju)) {
+            Log::warning('Opsi ukuran baju kosong; ukuran diterima apa adanya.', ['event_id' => $event->id, 'size' => $baju]);
+        }
+
+        if (empty($options['sepatu']) && ! empty($sepatu)) {
+            Log::warning('Opsi ukuran sepatu kosong; ukuran diterima apa adanya.', ['event_id' => $event->id, 'size' => $sepatu]);
+        }
+
+        if (! empty($baju) && ! empty($options['baju']) && ! in_array($baju, $options['baju'], true)) {
             throw new \RuntimeException('Ukuran Baju tidak tersedia pada event ini.');
         }
 
-        if (! empty($sepatu) && ! in_array($sepatu, $options['sepatu'], true)) {
+        if (! empty($sepatu) && ! empty($options['sepatu']) && ! in_array($sepatu, $options['sepatu'], true)) {
             throw new \RuntimeException('Ukuran Sepatu tidak tersedia pada event ini.');
         }
 

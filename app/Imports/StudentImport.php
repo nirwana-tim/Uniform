@@ -9,8 +9,11 @@ use App\Models\StudentGeneration;
 use App\Models\StudentSizeItem;
 use App\Models\StudentSizeProfile;
 use App\Models\StudyProgram;
+use App\Models\User;
 use App\Services\Master\GenerationResolverService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException as IlluminateValidationException;
@@ -25,6 +28,9 @@ class StudentImport implements ToCollection, WithMultipleSheets
 
     private int $importedCount = 0;
 
+    /** @var Collection<int, StudyProgram>|null */
+    private ?Collection $studyPrograms = null;
+
     public function collection(Collection $rows): void
     {
         $this->processRows($rows);
@@ -34,6 +40,7 @@ class StudentImport implements ToCollection, WithMultipleSheets
     {
         $records = $this->recordsFromRows($rows);
         $this->totalRows = count($records);
+        $this->studyPrograms = StudyProgram::query()->with('faculty')->get();
 
         $failures = $this->validateRecords($records);
 
@@ -46,53 +53,74 @@ class StudentImport implements ToCollection, WithMultipleSheets
 
         $items = Item::query()->get(['id', 'name', 'code']);
 
-        foreach ($records as $record) {
-            $student = Student::firstOrNew(
-                ['nim' => $record['nim']],
-            );
-            $student->fill([
-                'name' => $record['name'],
-                'gender' => $record['gender'],
-                'email_kampus' => $record['email_kampus'],
-                'email_pribadi' => $record['email_pribadi'],
-                'study_program_id' => $record['study_program']->id,
-                'generation_id' => $record['program_level']->id,
-                'student_level' => $record['student_level'],
-                'entitlement_code' => ($record['student_level'] ?? 'Y1S1')
-                    .($record['study_program']->faculty->code ?? 'FHS')
-                    .$record['study_program']->code,
-            ])->save();
+        $shirtItem = $items->first(fn ($i) => str_contains(strtolower($i->name), 'uniform')
+            || str_contains(strtolower($i->name), 'seragam')
+            || str_contains(strtolower($i->code), 'unf'));
 
-            // Save shirt size & shoe size if provided
-            if (! empty($record['shirt_size']) || ! empty($record['shoe_size'])) {
+        $shoeItem = $items->first(fn ($i) => str_contains(strtolower($i->name), 'sepatu')
+            || str_contains(strtolower($i->name), 'shoe')
+            || str_contains(strtolower($i->code), 'sho'));
+
+        DB::transaction(function () use ($records, $shirtItem, $shoeItem) {
+            foreach ($records as $record) {
+                $student = Student::firstOrNew(
+                    ['nim' => $record['nim']],
+                );
+                $student->fill([
+                    'name' => $record['name'],
+                    'gender' => $record['gender'],
+                    'email_kampus' => $record['email_kampus'],
+                    'email_pribadi' => $record['email_pribadi'],
+                    'study_program_id' => $record['study_program']->id,
+                    'generation_id' => $record['program_level']->id,
+                    'student_level' => $record['student_level'],
+                    'entitlement_code' => ($record['student_level'] ?? 'Y1S1')
+                        .($record['study_program']->faculty->code ?? 'FHS')
+                        .$record['study_program']->code,
+                ])->save();
+
+                if (empty($record['shirt_size']) && empty($record['shoe_size'])) {
+                    $this->importedCount++;
+
+                    continue;
+                }
+
                 $profile = StudentSizeProfile::firstOrCreate(
                     ['student_id' => $student->id],
                     ['is_filled' => true, 'filled_at' => now()]
                 );
 
                 if (! empty($record['shirt_size'])) {
-                    $shirtItem = $items->first(fn ($i) => str_contains(strtolower($i->name), 'uniform') || str_contains(strtolower($i->name), 'seragam') || str_contains(strtolower($i->code), 'unf')) ?? $items->first();
                     if ($shirtItem) {
                         StudentSizeItem::updateOrCreate(
                             ['size_profile_id' => $profile->id, 'item_id' => $shirtItem->id],
                             ['size' => $record['shirt_size'], 'change_count' => 0]
                         );
+                    } else {
+                        Log::warning('Item seragam tidak ditemukan; ukuran baju dilewati.', [
+                            'nim' => $record['nim'],
+                            'size' => $record['shirt_size'],
+                        ]);
                     }
                 }
 
                 if (! empty($record['shoe_size'])) {
-                    $shoeItem = $items->first(fn ($i) => str_contains(strtolower($i->name), 'sepatu') || str_contains(strtolower($i->name), 'shoe') || str_contains(strtolower($i->code), 'sho'));
                     if ($shoeItem) {
                         StudentSizeItem::updateOrCreate(
                             ['size_profile_id' => $profile->id, 'item_id' => $shoeItem->id],
                             ['size' => $record['shoe_size'], 'change_count' => 0]
                         );
+                    } else {
+                        Log::warning('Item sepatu tidak ditemukan; ukuran sepatu dilewati.', [
+                            'nim' => $record['nim'],
+                            'size' => $record['shoe_size'],
+                        ]);
                     }
                 }
-            }
 
-            $this->importedCount++;
-        }
+                $this->importedCount++;
+            }
+        });
     }
 
     public function sheets(): array
@@ -164,6 +192,8 @@ class StudentImport implements ToCollection, WithMultipleSheets
     {
         $failures = [];
         $seenNims = [];
+        $seenEmails = [];
+        $emailOwners = $this->buildEmailOwners($records);
 
         foreach ($records as &$record) {
             $validator = Validator::make($record, [
@@ -182,6 +212,30 @@ class StudentImport implements ToCollection, WithMultipleSheets
                 $failures[] = new Failure($record['row'], 'nim', ['NIM duplikat pada file ini.'], $record);
             }
             $seenNims[] = $record['nim'];
+
+            foreach (['email_kampus', 'email_pribadi'] as $field) {
+                $email = $record[$field] ?? null;
+
+                if (! $email) {
+                    continue;
+                }
+
+                $key = Str::lower($email);
+
+                if (isset($seenEmails[$key])) {
+                    $failures[] = new Failure($record['row'], $field, ['Email duplikat pada file ini.'], $record);
+
+                    continue;
+                }
+
+                $seenEmails[$key] = true;
+
+                $owner = $emailOwners[$key] ?? null;
+
+                if ($owner !== null && $owner !== $record['nim']) {
+                    $failures[] = new Failure($record['row'], $field, ['Email sudah digunakan oleh mahasiswa atau akun lain.'], $record);
+                }
+            }
 
             $record['study_program'] = $this->resolveStudyProgram($record['program']);
             $record['program_level'] = $this->resolveProgramLevel($record['nim']);
@@ -230,6 +284,59 @@ class StudentImport implements ToCollection, WithMultipleSheets
         ]);
     }
 
+    /**
+     * Map lower-cased email => owning NIM ("__account__" for non-student accounts).
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     * @return array<string, string>
+     */
+    private function buildEmailOwners(array $records): array
+    {
+        $emails = collect($records)
+            ->flatMap(fn (array $record): array => [$record['email_kampus'] ?? null, $record['email_pribadi'] ?? null])
+            ->filter()
+            ->map(fn (string $email): string => Str::lower($email))
+            ->unique()
+            ->values();
+
+        if ($emails->isEmpty()) {
+            return [];
+        }
+
+        $owners = [];
+
+        $students = Student::query()
+            ->where(function ($query) use ($emails) {
+                $query->whereIn(DB::raw('LOWER(email_kampus)'), $emails)
+                    ->orWhereIn(DB::raw('LOWER(email_pribadi)'), $emails);
+            })
+            ->get(['nim', 'user_id', 'email_kampus', 'email_pribadi']);
+
+        foreach ($students as $student) {
+            foreach ([$student->email_kampus, $student->email_pribadi] as $email) {
+                if ($email) {
+                    $owners[Str::lower($email)] ??= $student->nim;
+                }
+            }
+        }
+
+        $users = User::query()
+            ->whereIn(DB::raw('LOWER(email)'), $emails)
+            ->get(['id', 'email']);
+
+        if ($users->isNotEmpty()) {
+            $nimByUser = Student::query()
+                ->whereIn('user_id', $users->pluck('id'))
+                ->pluck('nim', 'user_id');
+
+            foreach ($users as $user) {
+                $owners[Str::lower($user->email)] ??= $nimByUser[$user->id] ?? '__account__';
+            }
+        }
+
+        return $owners;
+    }
+
     private function resolveStudyProgram(?string $value): StudyProgram
     {
         if (! $value) {
@@ -238,17 +345,16 @@ class StudentImport implements ToCollection, WithMultipleSheets
 
         $normalized = $this->normalizeProgramName($value);
 
-        $found = StudyProgram::query()
-            ->with('faculty')
-            ->get()
-            ->first(function (StudyProgram $program) use ($value, $normalized): bool {
-                $pNorm = $this->normalizeProgramName($program->name);
+        $this->studyPrograms ??= StudyProgram::query()->with('faculty')->get();
 
-                return Str::lower($program->code) === Str::lower($value)
-                    || $pNorm === $normalized
-                    || str_contains($pNorm, $normalized)
-                    || str_contains($normalized, $pNorm);
-            });
+        $found = $this->studyPrograms->first(function (StudyProgram $program) use ($value, $normalized): bool {
+            $pNorm = $this->normalizeProgramName($program->name);
+
+            return Str::lower($program->code) === Str::lower($value)
+                || $pNorm === $normalized
+                || str_contains($pNorm, $normalized)
+                || str_contains($normalized, $pNorm);
+        });
 
         if ($found) {
             return $found;
@@ -258,13 +364,17 @@ class StudentImport implements ToCollection, WithMultipleSheets
         $code = Str::upper(Str::slug($value, ''));
         $code = strlen($code) > 10 ? substr($code, 0, 10) : ($code ?: 'PRODI');
 
-        return StudyProgram::firstOrCreate(
+        $program = StudyProgram::firstOrCreate(
             ['name' => trim($value)],
             [
                 'code' => $code,
                 'faculty_id' => $faculty->id,
             ]
         );
+
+        $this->studyPrograms->push($program->loadMissing('faculty'));
+
+        return $program;
     }
 
     private function resolveProgramLevel(?string $nim): StudentGeneration

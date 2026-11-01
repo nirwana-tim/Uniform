@@ -17,7 +17,8 @@ class ReportService
 {
     public function getDistributionReportData(?string $period = null, ?int $studyProgramId = null): Collection
     {
-        $query = DistributionTransaction::with(['student.studyProgram', 'student.generation', 'items.item', 'schedule']);
+        $query = DistributionTransaction::with(['student.studyProgram', 'student.generation', 'items.item', 'schedule'])
+            ->whereIn('status', ['completed', 'partial']);
 
         if ($period) {
             $query->whereHas('schedule', function ($q) use ($period) {
@@ -46,6 +47,7 @@ class ReportService
         )
             ->join('students', 'distribution_transactions.student_id', '=', 'students.id')
             ->join('study_programs', 'students.study_program_id', '=', 'study_programs.id')
+            ->whereIn('distribution_transactions.status', ['completed', 'partial'])
             ->groupBy('students.study_program_id', 'study_programs.name');
 
         if ($period) {
@@ -88,6 +90,8 @@ class ReportService
             DB::raw('SUM(distribution_items.quantity * distribution_items.selling_price_at_distribution) as total_revenue')
         )
             ->join('items', 'distribution_items.item_id', '=', 'items.id')
+            ->join('distribution_transactions', 'distribution_transactions.id', '=', 'distribution_items.transaction_id')
+            ->whereIn('distribution_transactions.status', ['completed', 'partial'])
             ->groupBy('distribution_items.item_id');
 
         if ($categoryId) {
@@ -111,6 +115,7 @@ class ReportService
                 DB::raw('SUM(di.quantity * di.hpp) as total_cogs')
             )
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
+            ->whereIn('dt.status', ['completed', 'partial'])
             ->whereYear('dt.pickup_time', $year)
             ->whereMonth('dt.pickup_time', $month)
             ->groupBy('di.item_id');
@@ -134,16 +139,11 @@ class ReportService
         $categories = DB::table('item_categories as ic')
             ->select(
                 'ic.id', 'ic.label', 'ic.code',
-                DB::raw('COALESCE(SUM(di.quantity), 0) as unit_sold'),
+                DB::raw('COALESCE(SUM(di.total_sold), 0) as unit_sold'),
                 DB::raw('COALESCE(SUM(sb.stock_sum), 0) as stock_avail')
             )
             ->leftJoin('items as i', 'i.category_id', '=', 'ic.id')
-            ->leftJoin('distribution_items as di', 'di.item_id', '=', 'i.id')
-            ->leftJoin('distribution_transactions as dt', function ($join) use ($month, $year) {
-                $join->on('dt.id', '=', 'di.transaction_id')
-                    ->whereYear('dt.pickup_time', '=', $year)
-                    ->whereMonth('dt.pickup_time', '=', $month);
-            })
+            ->leftJoinSub($soldSub, 'di', 'di.item_id', '=', 'i.id')
             ->leftJoinSub($balanceSub, 'sb', 'sb.item_id', '=', 'i.id')
             ->groupBy('ic.id', 'ic.label', 'ic.code')
             ->orderBy('ic.code')
@@ -161,6 +161,7 @@ class ReportService
                     ->whereYear('dt.pickup_time', '=', $year)
                     ->whereMonth('dt.pickup_time', '=', $month);
             })
+            ->whereIn('dt.status', ['completed', 'partial'])
             ->groupBy('i.id', 'i.name', 'i.code')
             ->orderBy('i.name')
             ->get();
@@ -176,6 +177,7 @@ class ReportService
                     ->whereYear('dt.pickup_time', '=', $year)
                     ->whereMonth('dt.pickup_time', '=', $month);
             })
+            ->whereIn('dt.status', ['completed', 'partial'])
             ->first();
 
         $stockDetails = DB::table('items as i')
@@ -211,6 +213,7 @@ class ReportService
             )
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
+            ->whereIn('dt.status', ['completed', 'partial'])
             ->where('dt.pickup_time', '>=', $cutoff)
             ->groupBy(DB::raw('EXTRACT(YEAR FROM dt.pickup_time)'), DB::raw('EXTRACT(MONTH FROM dt.pickup_time)'))
             ->orderBy(DB::raw('EXTRACT(YEAR FROM dt.pickup_time)'))
@@ -237,13 +240,17 @@ class ReportService
 
         $receivedSub->groupBy('students.study_program_id');
 
+        $notReceived = $period
+            ? DB::raw('0 as not_received')
+            : DB::raw('COALESCE(eligible.total_eligible, 0) - COALESCE(received.total_received, 0) as not_received');
+
         $query = DB::table('study_programs')
             ->select(
                 'study_programs.id',
                 'study_programs.name as study_program_name',
                 DB::raw('COALESCE(eligible.total_eligible, 0) as total_eligible'),
                 DB::raw('COALESCE(received.total_received, 0) as total_received'),
-                DB::raw('COALESCE(eligible.total_eligible, 0) - COALESCE(received.total_received, 0) as not_received')
+                $notReceived
             )
             ->leftJoin(DB::raw('(
                 SELECT students.study_program_id, COUNT(DISTINCT students.id) as total_eligible

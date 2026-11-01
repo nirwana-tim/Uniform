@@ -54,10 +54,13 @@ class DistributionService
     /**
      * Find the specific item (by base_code + size) for distribution.
      * Returns the item with matching base_code and variant size.
+     *
+     * @param  array<int, int>|null  $allowedItemIds  Restrict candidates to items present in the schedule.
      */
-    public function findItemByBaseCodeAndSize(string $baseCode, string $size): ?Item
+    public function findItemByBaseCodeAndSize(string $baseCode, string $size, ?array $allowedItemIds = null): ?Item
     {
         $candidates = Item::where('base_code', $baseCode)
+            ->when($allowedItemIds !== null, fn ($q) => $q->whereIn('id', $allowedItemIds))
             ->whereHas('variants', fn ($q) => $q->where('size', $size))
             ->with(['variants' => fn ($q) => $q->where('size', $size)])
             ->get();
@@ -117,6 +120,11 @@ class DistributionService
             }
 
             $scheduleItemIds = $schedule->items()->pluck('item_id')->all();
+            $scheduleItemsById = Item::whereIn('id', $scheduleItemIds)->get(['id', 'base_code', 'code'])->keyBy('id');
+            $scheduleBaseCodes = $scheduleItemsById->pluck('base_code')->filter()->unique()->values()->all();
+            $scheduleAllowedItemIds = empty($scheduleBaseCodes)
+                ? $scheduleItemIds
+                : Item::whereIn('base_code', $scheduleBaseCodes)->pluck('id')->all();
             $submittedItemIds = array_values(array_unique(array_filter(array_map(
                 fn ($row) => (int) ($row['item_id'] ?? 0),
                 $items
@@ -190,13 +198,20 @@ class DistributionService
             $distributedInRequest = [];
 
             foreach ($items as $itemData) {
-                $item = null;
-                if (! empty($itemData['base_code'])) {
-                    $item = $this->findItemByBaseCodeAndSize($itemData['base_code'], $itemData['actual_size']);
+                $submittedItem = Item::find((int) ($itemData['item_id'] ?? 0));
+                $submittedBaseCode = $itemData['base_code'] ?? $submittedItem?->base_code;
+
+                if ($submittedItem && $submittedBaseCode && $submittedItem->base_code !== $submittedBaseCode) {
+                    throw new \Exception(
+                        "Barang \"{$submittedItem->name}\" tidak sesuai dengan kode barang yang dikirim ({$submittedBaseCode})."
+                    );
                 }
-                if (! $item) {
-                    $item = Item::find($itemData['item_id'] ?? 0);
-                }
+
+                $item = $submittedBaseCode
+                    ? $this->findItemByBaseCodeAndSize($submittedBaseCode, $itemData['actual_size'], $scheduleAllowedItemIds)
+                    : null;
+                $item ??= $submittedItem;
+
                 if (! $item) {
                     continue;
                 }
@@ -209,9 +224,10 @@ class DistributionService
 
                 $entitlementItem = $entitlementMap->get($item->id)
                     ?? ($entitlementByBaseCode[$item->base_code ?? ''] ?? null);
+                $productKey = $item->base_code ?? (string) $item->id;
+                $requestedQty = (int) ($itemData['quantity'] ?? 1);
+
                 if ($entitlementItem) {
-                    $requestedQty = (int) ($itemData['quantity'] ?? 1);
-                    $productKey = $item->base_code ?? (string) $item->id;
                     $alreadyDistributed = (int) ($item->base_code
                             ? ($distributedByBaseCode[$item->base_code] ?? 0)
                             : ($distributedByItem[$item->id] ?? 0))
@@ -229,8 +245,6 @@ class DistributionService
                             "Jumlah {$item->name} melebihi hak distribusi ({$requestedQty} diminta, sisa hak {$remaining})."
                         );
                     }
-
-                    $distributedInRequest[$productKey] = ($distributedInRequest[$productKey] ?? 0) + $requestedQty;
                 }
 
                 $variant = ItemVariant::where('item_id', $item->id)
@@ -271,6 +285,10 @@ class DistributionService
                 }
 
                 $effectiveQty = $variant ? $deductedQty : 0;
+
+                if ($entitlementItem) {
+                    $distributedInRequest[$productKey] = ($distributedInRequest[$productKey] ?? 0) + $effectiveQty;
+                }
 
                 $sellingPrice = $this->getDeferredPrice($student, $item->id)
                     ?? $this->getSellingPriceForPeriod($item->id, $schedule);
@@ -362,7 +380,7 @@ class DistributionService
                     $allFullyStocked = false;
                     $expectedSize = $studentSizesByBaseCode[$entitlementItem->item_id]
                         ?? $studentSizesByBaseCode[$entBaseCode ?? ''] ?? '-';
-                    $autoNotes[] = "{$entitlementItem->item->name} (Ukuran {$expectedSize}) ditunda/belum diambil";
+                    $autoNotes[] = ($entitlementItem->item?->name ?? 'Barang')." (Ukuran {$expectedSize}) ditunda/belum diambil";
                 }
             }
 

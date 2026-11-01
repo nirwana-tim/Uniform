@@ -15,7 +15,7 @@ class CalculateStudentSummaries extends Command
 
     public function handle(): int
     {
-        $query = Student::query()->with('studyProgram');
+        $query = Student::query();
 
         if ($studentId = $this->option('student-id')) {
             $query->where('id', (int) $studentId);
@@ -35,7 +35,7 @@ class CalculateStudentSummaries extends Command
     private function calculateForStudent(int $studentId): void
     {
         $aggregate = DistributionTransaction::select(
-            DB::raw('COUNT(*) as total_transactions'),
+            DB::raw('COUNT(DISTINCT distribution_transactions.id) as total_transactions'),
             DB::raw('COALESCE(SUM(di.quantity), 0) as total_items_received'),
             DB::raw('COALESCE(SUM(di.quantity * di.selling_price_at_distribution), 0) as total_spend'),
             DB::raw('MAX(pickup_time) as last_distribution_at')

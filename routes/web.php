@@ -166,7 +166,6 @@ Route::middleware(['auth', 'password.changed', 'role:super_admin|admin', 'thrott
     Route::post('/credentials/{student}/reset-password', [StudentController::class, 'resetPassword'])->middleware('throttle:5,1')->name('credentials.reset-password');
     Route::post('/credentials/{student}/resend-email', [StudentController::class, 'resendEmail'])->middleware('throttle:10,1')->name('credentials.resend-email');
     Route::post('/credentials/resend-all-failed', [StudentController::class, 'resendAllFailed'])->middleware('throttle:5,1')->name('credentials.resend-all-failed');
-    Route::post('/credentials/destroy', [StudentController::class, 'destroyCredentials'])->name('credentials.destroy');
 });
 
 Route::middleware(['auth', 'password.changed', 'role:student'])->prefix('student')->name('student.')->group(function () {

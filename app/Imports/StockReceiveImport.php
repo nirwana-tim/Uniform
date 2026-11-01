@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\StockReceive;
 use App\Models\Vendor;
 use App\Services\StockService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -15,6 +16,7 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Validators\Failure;
 use Maatwebsite\Excel\Validators\ValidationException;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSheets
 {
@@ -41,6 +43,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         }
 
         $groups = $this->groupRecords($records);
+        $groups = $this->resolveGroups($groups);
         $stockService = app(StockService::class);
 
         $existingRefs = StockReceive::whereIn('reference_number', array_keys($groups))
@@ -68,7 +71,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
             }
         }
 
-        foreach ($groups as $key => $group) {
+        foreach ($groups as $group) {
             $vendor = Vendor::firstOrCreate(
                 ['name' => trim($group['vendor_name'])]
             );
@@ -78,41 +81,11 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
                 'receive_date' => $group['receive_date'],
                 'reference_number' => $group['reference_number'],
                 'notes' => $group['notes'],
-                'items' => [],
+                'items' => $group['resolved_items'],
             ];
 
-            foreach ($group['items'] as $itemData) {
-                $item = Item::where(function ($q) use ($itemData) {
-                    $q->where('code', $itemData['kode_barang'])
-                        ->orWhere('base_code', $itemData['kode_barang']);
-                })
-                    ->first();
-
-                if (! $item) {
-                    continue;
-                }
-
-                $variant = $itemData['sku']
-                    ? $item->variants()->where('sku', $itemData['sku'])->first()
-                    : $item->variants()->first();
-
-                if (! $variant) {
-                    continue;
-                }
-
-                $data['items'][] = [
-                    'item_id' => $item->id,
-                    'variant_id' => $variant->id,
-                    'quantity' => $itemData['quantity'],
-                    'unit_price' => $itemData['unit_price'],
-                    'hpp' => $itemData['hpp'],
-                ];
-            }
-
-            if (! empty($data['items'])) {
-                $stockService->receiveStock($data);
-                $this->importedCount += count($data['items']);
-            }
+            $stockService->receiveStock($data);
+            $this->importedCount += count($data['items']);
         }
     }
 
@@ -167,6 +140,8 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
                 continue;
             }
 
+            $rawDate = $values['tanggal'] ?? $values['receive_date'] ?? $values['tanggal_terima'] ?? $values['tgl_terima'] ?? null;
+
             $records[] = [
                 'row' => $index + 1,
                 'kode_barang' => $this->clean($values['kode_barang'] ?? null),
@@ -175,7 +150,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
                 'unit_price' => $this->parseDecimal($values['unit_price'] ?? $values['harga_satuan'] ?? $values['harga_satuan_rp'] ?? null),
                 'hpp' => $this->parseDecimal($values['hpp'] ?? $values['hpp_rp'] ?? null),
                 'vendor' => $this->clean($values['vendor'] ?? $values['vendor_name'] ?? $values['nama_vendor'] ?? null),
-                'tanggal' => $this->clean($values['tanggal'] ?? $values['receive_date'] ?? $values['tanggal_terima'] ?? $values['tgl_terima'] ?? date('Y-m-d')),
+                'tanggal' => $this->parseDate($rawDate) ?? (blank($rawDate) ? now()->toDateString() : null),
                 'nomor_ref' => $this->clean($values['nomor_ref'] ?? $values['reference_number'] ?? null),
                 'notes' => $this->clean($values['notes'] ?? $values['keterangan'] ?? null),
             ];
@@ -209,14 +184,17 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
     private function groupRecords(array $records): array
     {
         $groups = [];
-        $batchIndex = 0;
+        $stockService = app(StockService::class);
 
         foreach ($records as $record) {
             $ref = $record['nomor_ref'];
+
             if (! $ref) {
-                $batchIndex++;
-                $ref = 'SR-'.date('Ymd').'-'.str_pad($batchIndex, 4, '0', STR_PAD_LEFT);
+                $sequence = $stockService->nextSequence('SR', $record['tanggal'] ?? now()->toDateString());
+                $dateString = str_replace('-', '', $record['tanggal'] ?? now()->toDateString());
+                $ref = 'SR-'.$dateString.'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
             }
+
             $key = $ref;
 
             if (! isset($groups[$key])) {
@@ -230,6 +208,103 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
             }
 
             $groups[$key]['items'][] = $record;
+        }
+
+        return $groups;
+    }
+
+    private function resolveGroups(array $groups): array
+    {
+        $failures = [];
+
+        foreach ($groups as $key => $group) {
+            $resolvedItems = [];
+
+            foreach ($group['items'] as $itemData) {
+                $items = Item::where(function ($q) use ($itemData) {
+                    $q->where('code', $itemData['kode_barang'])
+                        ->orWhere('base_code', $itemData['kode_barang']);
+                })->get();
+
+                if ($items->isEmpty()) {
+                    $failures[] = new Failure(
+                        $itemData['row'],
+                        'kode_barang',
+                        ['Barang dengan kode ini tidak ditemukan.'],
+                        $itemData
+                    );
+
+                    continue;
+                }
+
+                if ($items->count() > 1) {
+                    $failures[] = new Failure(
+                        $itemData['row'],
+                        'kode_barang',
+                        ['Kode barang cocok dengan lebih dari satu item. Gunakan kode barang yang spesifik.'],
+                        $itemData
+                    );
+
+                    continue;
+                }
+
+                $item = $items->first();
+                $variants = $item->variants()->get();
+
+                if ($itemData['sku']) {
+                    $variant = $variants->firstWhere('sku', $itemData['sku']);
+
+                    if (! $variant) {
+                        $failures[] = new Failure(
+                            $itemData['row'],
+                            'sku',
+                            ['SKU varian tidak ditemukan untuk barang ini.'],
+                            $itemData
+                        );
+
+                        continue;
+                    }
+                } elseif ($variants->count() > 1) {
+                    $failures[] = new Failure(
+                        $itemData['row'],
+                        'sku',
+                        ['SKU wajib diisi karena barang memiliki lebih dari satu varian ukuran.'],
+                        $itemData
+                    );
+
+                    continue;
+                } else {
+                    $variant = $variants->first();
+
+                    if (! $variant) {
+                        $failures[] = new Failure(
+                            $itemData['row'],
+                            'sku',
+                            ['Barang belum memiliki varian ukuran.'],
+                            $itemData
+                        );
+
+                        continue;
+                    }
+                }
+
+                $resolvedItems[] = [
+                    'item_id' => $item->id,
+                    'variant_id' => $variant->id,
+                    'quantity' => $itemData['quantity'],
+                    'unit_price' => $itemData['unit_price'],
+                    'hpp' => $itemData['hpp'],
+                ];
+            }
+
+            $groups[$key]['resolved_items'] = $resolvedItems;
+        }
+
+        if ($failures !== []) {
+            throw new ValidationException(
+                IlluminateValidationException::withMessages([]),
+                $failures
+            );
         }
 
         return $groups;
@@ -259,6 +334,45 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         $value = ltrim(trim((string) $value), "'");
 
         return $value === '' ? null : $value;
+    }
+
+    private function parseDate(mixed $value): ?string
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return Carbon::instance($value)->toDateString();
+        }
+
+        if (is_numeric($value) && (float) $value > 0) {
+            try {
+                return Carbon::instance(Date::excelToDateTimeObject((float) $value))->toDateString();
+            } catch (\Throwable) {
+                // lanjut ke parsing string
+            }
+        }
+
+        $text = trim((string) $value);
+
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'd/m/y', 'd-m-y'] as $format) {
+            try {
+                $date = Carbon::createFromFormat($format, $text);
+
+                if ($date !== false) {
+                    return $date->toDateString();
+                }
+            } catch (\Throwable) {
+                // coba format berikutnya
+            }
+        }
+
+        try {
+            return Carbon::parse($text)->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function parseNumeric(mixed $value): ?int

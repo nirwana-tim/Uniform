@@ -332,6 +332,7 @@ class StockService
             ->join('students', 'student_size_profiles.student_id', '=', 'students.id')
             ->join('items', 'student_size_items.item_id', '=', 'items.id')
             ->where('students.status', 'active')
+            ->whereNull('students.deleted_at')
             ->where('student_size_profiles.is_filled', true)
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -375,6 +376,7 @@ class StockService
                 $join->on('item_variants.id', '=', 'stock_balances.variant_id');
             })
             ->where('students.status', 'active')
+            ->whereNull('students.deleted_at')
             ->where('student_size_profiles.is_filled', true)
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -443,6 +445,7 @@ class StockService
                 $join->on('item_variants.id', '=', 'stock_balances.variant_id');
             })
             ->where('students.status', 'active')
+            ->whereNull('students.deleted_at')
             ->where('student_size_profiles.is_filled', true)
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
@@ -588,11 +591,19 @@ class StockService
                     ->lockForUpdate()
                     ->first();
                 if ($balance) {
+                    if ($balance->quantity < $item->quantity) {
+                        throw new \Exception(
+                            "Saldo stok tidak mencukupi untuk membatalkan penerimaan {$item->item?->name} "
+                            ."(stok saat ini {$balance->quantity}, dibutuhkan {$item->quantity}). "
+                            .'Gunakan Stock Opname untuk koreksi stok.'
+                        );
+                    }
+
                     $balance->decrement('quantity', $item->quantity);
                 }
             }
             $receive->items()->delete();
-            $receive->delete();
+            $receive->forceDelete();
 
             $this->forgetDashboardStockCache();
         }, attempts: 5);
@@ -607,23 +618,42 @@ class StockService
                 ->where('stock_batch_id', '!=', null)
                 ->where('reference_type', $referenceType)
                 ->where('reference_id', $referenceId)
+                ->lockForUpdate()
                 ->get();
 
+            $alreadyReturned = StockMovement::where('item_id', $itemId)
+                ->where('variant_id', $variantId)
+                ->where('type', 'IN')
+                ->where('reference_type', $referenceType)
+                ->where('reference_id', $referenceId)
+                ->whereNotNull('stock_batch_id')
+                ->groupBy('stock_batch_id')
+                ->selectRaw('stock_batch_id, SUM(quantity) as total')
+                ->pluck('total', 'stock_batch_id')
+                ->map(fn ($total) => (int) $total)
+                ->all();
+
             $returnQty = $quantity;
-            $returnedHpp = 0;
+            $totalReturnCost = 0.0;
 
             foreach ($outMovements as $movement) {
                 if ($returnQty <= 0) {
                     break;
                 }
-                $batch = StockBatch::find($movement->stock_batch_id);
+                $availableToReturn = max(0, (int) $movement->quantity - ($alreadyReturned[$movement->stock_batch_id] ?? 0));
+
+                if ($availableToReturn <= 0) {
+                    continue;
+                }
+
+                $batch = StockBatch::whereKey($movement->stock_batch_id)->lockForUpdate()->first();
                 if (! $batch) {
                     continue;
                 }
 
-                $returnToBatch = min($returnQty, $movement->quantity);
+                $returnToBatch = min($returnQty, $availableToReturn);
                 $batch->increment('quantity_remaining', $returnToBatch);
-                $returnedHpp = $batch->unit_hpp;
+                $totalReturnCost += $returnToBatch * $batch->unit_hpp;
 
                 StockMovement::create([
                     'item_id' => $itemId,
@@ -643,6 +673,8 @@ class StockService
             if ($returnQty > 0) {
                 throw new \Exception("Tidak dapat mengembalikan {$returnQty} unit: batch asal tidak ditemukan.");
             }
+
+            $returnedHpp = $quantity > 0 ? round($totalReturnCost / $quantity, 2) : 0;
 
             $this->increaseBalance($itemId, $variantId, $quantity, $returnedHpp);
         }, attempts: 5);

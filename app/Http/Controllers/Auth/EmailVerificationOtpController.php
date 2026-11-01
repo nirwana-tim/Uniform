@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\OtpCode;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\Master\StudentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,16 @@ class EmailVerificationOtpController extends Controller
         ]);
 
         $student = Student::where('user_id', Auth::id())->firstOrFail();
+
+        $emailTaken = User::where('email', $validated['email_kampus'])
+            ->where('id', '!=', Auth::id())
+            ->exists();
+
+        if ($emailTaken) {
+            return back()->withErrors([
+                'email_kampus' => 'Email kampus ini sudah digunakan oleh akun lain.',
+            ]);
+        }
 
         OtpCode::where('user_id', Auth::id())->whereNull('used_at')->where('expires_at', '>', now())->update(['used_at' => now()]);
 
@@ -59,7 +70,7 @@ class EmailVerificationOtpController extends Controller
 
     public function showVerifyForm(): View
     {
-        if (!session('pending_email')) {
+        if (! session('pending_email')) {
             return view('auth.verify-email-otp', ['email' => '']);
         }
 
@@ -75,7 +86,7 @@ class EmailVerificationOtpController extends Controller
         $student = Student::where('user_id', Auth::id())->firstOrFail();
         $pendingEmail = session('pending_email');
 
-        if (!$pendingEmail) {
+        if (! $pendingEmail) {
             return redirect()->route('dashboard')
                 ->withErrors(['error' => 'Session tidak valid. Silakan mulai ulang.']);
         }
@@ -91,6 +102,7 @@ class EmailVerificationOtpController extends Controller
         if ($recentOtp && $recentOtp->attempts >= 5) {
             session()->forget(['pending_email', 'otp_attempts']);
             OtpCode::where('user_id', Auth::id())->whereNull('used_at')->update(['used_at' => now()]);
+
             return redirect()->route('student.email.send-otp')
                 ->withErrors(['error' => 'Terlalu banyak percobaan. Silakan kirim ulang OTP.']);
         }
@@ -104,11 +116,12 @@ class EmailVerificationOtpController extends Controller
             ->latest()
             ->first();
 
-        if (!$otp) {
+        if (! $otp) {
             if ($recentOtp) {
                 $recentOtp->increment('attempts');
             }
             session(['otp_attempts' => $attempts + 1]);
+
             return back()->withErrors(['code' => 'Kode OTP tidak valid atau sudah kedaluwarsa.']);
         }
 

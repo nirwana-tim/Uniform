@@ -16,6 +16,8 @@ use Illuminate\View\View;
 
 class EmailController extends Controller
 {
+    private const PASSWORD_VERIFICATION_TTL_MINUTES = 10;
+
     public function __construct(
         protected StudentService $studentService
     ) {}
@@ -31,6 +33,8 @@ class EmailController extends Controller
             'password' => ['required', 'current_password'],
         ]);
 
+        session(['email_change_verified_at' => now()->timestamp]);
+
         if ($request->ajax()) {
             return response()->json([
                 'redirect' => route('profile.email.input-email'),
@@ -40,13 +44,23 @@ class EmailController extends Controller
         return redirect()->route('profile.email.input-email');
     }
 
-    public function showEmailForm(): View
+    public function showEmailForm(): View|RedirectResponse
     {
+        if (! $this->hasVerifiedPasswordRecently()) {
+            return redirect()->route('profile.email.change')
+                ->withErrors(['password' => 'Silakan verifikasi password terlebih dahulu.']);
+        }
+
         return view('profile.email.input-email');
     }
 
     public function sendOtp(Request $request): RedirectResponse
     {
+        if (! $this->hasVerifiedPasswordRecently()) {
+            return redirect()->route('profile.email.change')
+                ->withErrors(['password' => 'Sesi verifikasi password sudah habis. Silakan masukkan password Anda lagi.']);
+        }
+
         $request->validate([
             'email_pribadi' => ['required', 'email', 'max:255'],
         ]);
@@ -87,6 +101,7 @@ class EmailController extends Controller
         }
 
         session(['pending_email_pribadi' => $request->input('email_pribadi')]);
+        session()->forget('email_change_verified_at');
 
         return redirect()->route('profile.email.verify-otp')
             ->with('success', 'Kode OTP telah dikirim ke email baru Anda.');
@@ -163,5 +178,12 @@ class EmailController extends Controller
 
         return redirect()->route('profile.edit')
             ->with('success', 'Email pribadi berhasil diperbarui.');
+    }
+
+    private function hasVerifiedPasswordRecently(): bool
+    {
+        $verifiedAt = (int) session('email_change_verified_at', 0);
+
+        return $verifiedAt > 0 && (now()->timestamp - $verifiedAt) <= self::PASSWORD_VERIFICATION_TTL_MINUTES * 60;
     }
 }

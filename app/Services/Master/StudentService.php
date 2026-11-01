@@ -6,6 +6,8 @@ use App\Models\Student;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class StudentService
 {
@@ -64,17 +66,45 @@ class StudentService
 
     public function destroy(Student $student): void
     {
-        $student->delete();
+        DB::transaction(function () use ($student) {
+            $student->delete();
+
+            if (! $student->user_id) {
+                return;
+            }
+
+            $user = User::find($student->user_id);
+
+            if (! $user) {
+                return;
+            }
+
+            $user->update(['is_active' => false]);
+
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+        });
     }
 
     public function generateAccount(Student $student): array
     {
         return DB::transaction(function () use ($student) {
             $password = "Uniform@{$student->nim}";
+            $email = $student->email_kampus ?: "{$student->nim}@temp.horizon.ac.id";
+            $fallbackEmail = "{$student->nim}@temp.horizon.ac.id";
+
+            if (User::where('email', $email)->exists()) {
+                if ($email === $fallbackEmail || User::where('email', $fallbackEmail)->exists()) {
+                    throw new \RuntimeException(
+                        "Email {$email} sudah digunakan akun lain. Akun mahasiswa {$student->nim} dilewati."
+                    );
+                }
+
+                $email = $fallbackEmail;
+            }
 
             $user = User::create([
                 'name' => $student->name,
-                'email' => $student->email_kampus ?? "{$student->nim}@temp.horizon.ac.id",
+                'email' => $email,
                 'password' => $password,
                 'must_change_password' => true,
             ]);
@@ -85,7 +115,9 @@ class StudentService
                 'user_id' => $user->id,
             ]);
 
-            app(NotificationService::class)->sendStudentAccount($student, $password);
+            DB::afterCommit(function () use ($student, $password) {
+                app(NotificationService::class)->sendStudentAccount($student, $password);
+            });
 
             return [$user, $password];
         });
@@ -105,6 +137,26 @@ class StudentService
 
             return [$user, $password];
         });
+    }
+
+    /**
+     * Return the default password only while the stored hash still matches it.
+     */
+    public function defaultPasswordFor(Student $student): ?string
+    {
+        if (! $student->user_id) {
+            return null;
+        }
+
+        $user = User::find($student->user_id);
+
+        if (! $user) {
+            return null;
+        }
+
+        $password = "Uniform@{$student->nim}";
+
+        return Hash::check($password, $user->password) ? $password : null;
     }
 
     public function promoteStudents(array $ids, ?int $newGenerationId = null, ?int $newStudyProgramId = null): int
@@ -200,6 +252,16 @@ class StudentService
 
     public function verifyEmailKampus(Student $student, string $email): void
     {
+        $emailTaken = User::where('email', $email)
+            ->when($student->user_id, fn ($q) => $q->where('id', '!=', $student->user_id))
+            ->exists();
+
+        if ($emailTaken) {
+            throw ValidationException::withMessages([
+                'email_kampus' => 'Email kampus ini sudah digunakan oleh akun lain.',
+            ]);
+        }
+
         $student->update([
             'email_kampus' => $email,
             'email_verified_at' => now(),

@@ -131,15 +131,21 @@ class StudentController extends Controller
         $entitlement = $student->entitlement_code
             ? Entitlement::where('code', $student->entitlement_code)
                 ->where('is_active', true)
-                ->where('student_level', $student->student_level)
+                ->where(function ($q) use ($student) {
+                    $q->where('student_level', $student->student_level)
+                        ->orWhereNull('student_level');
+                })
                 ->with('items.item')
                 ->first()
             : null;
 
-        $receivedItems = DistributionItem::whereHas('transaction', fn ($q) => $q->where('student_id', $student->id)
+        $receivedItems = DistributionItem::whereHas('transaction', fn ($q) => $q
+            ->where('student_id', $student->id)
+            ->whereIn('status', ['completed', 'partial'])
         )
             ->with('item')
             ->get()
+            ->filter(fn ($di) => $di->item !== null)
             ->groupBy(fn ($di) => $di->item->base_code ?? $di->item_id)
             ->map(fn ($items) => ['total_qty' => $items->sum('quantity')]);
 
@@ -148,11 +154,14 @@ class StudentController extends Controller
 
     public function receivedItems(Student $student): View
     {
-        $receivedItems = DistributionItem::whereHas('transaction', fn ($q) => $q->where('student_id', $student->id)
+        $receivedItems = DistributionItem::whereHas('transaction', fn ($q) => $q
+            ->where('student_id', $student->id)
+            ->whereIn('status', ['completed', 'partial'])
         )
             ->with(['item', 'transaction.schedule'])
             ->get()
-            ->groupBy(fn ($di) => $di->item?->base_code ?? $di->item_id)
+            ->filter(fn ($di) => $di->item !== null)
+            ->groupBy(fn ($di) => $di->item->base_code ?? $di->item_id)
             ->map(fn ($items) => [
                 'item' => $items->first()?->item,
                 'total_qty' => $items->sum('quantity'),
@@ -212,9 +221,17 @@ class StudentController extends Controller
             ->get();
 
         $generated = [];
+        $failed = [];
 
         foreach ($students as $student) {
-            [$user, $password] = $this->studentService->generateAccount($student);
+            try {
+                [$user, $password] = $this->studentService->generateAccount($student);
+            } catch (\Throwable $e) {
+                $failed[] = "{$student->nim} - {$student->name}: {$e->getMessage()}";
+
+                continue;
+            }
+
             $generated[] = [
                 'name' => $student->name,
                 'nim' => $student->nim,
@@ -224,13 +241,19 @@ class StudentController extends Controller
 
         if (empty($generated)) {
             return redirect()->route('students.generate-index')
-                ->with('info', 'Tidak ada akun baru yang digenerate.');
+                ->with('info', 'Tidak ada akun baru yang digenerate.')
+                ->with('generation_failures', $failed);
         }
 
         $message = 'Berhasil membuat '.count($generated).' akun mahasiswa. Distributed kredensial di halaman berikut.';
 
+        if (! empty($failed)) {
+            $message .= ' '.count($failed).' mahasiswa dilewati (lihat detail).';
+        }
+
         return redirect()->route('students.credentials')
-            ->with('success', $message);
+            ->with('success', $message)
+            ->with('generation_failures', $failed);
     }
 
     public function export(Request $request): BinaryFileResponse
@@ -290,9 +313,17 @@ class StudentController extends Controller
         }
 
         $generated = [];
+        $failed = [];
 
         foreach ($students as $student) {
-            [$user, $password] = $this->studentService->generateAccount($student);
+            try {
+                [$user, $password] = $this->studentService->generateAccount($student);
+            } catch (\Throwable $e) {
+                $failed[] = "{$student->nim} - {$student->name}: {$e->getMessage()}";
+
+                continue;
+            }
+
             $generated[] = [
                 'name' => $student->name,
                 'nim' => $student->nim,
@@ -302,8 +333,13 @@ class StudentController extends Controller
 
         $message = 'Berhasil membuat '.count($generated).' akun mahasiswa. Distributed kredensial di halaman berikut.';
 
+        if (! empty($failed)) {
+            $message .= ' '.count($failed).' mahasiswa dilewati (lihat detail).';
+        }
+
         return redirect()->route('students.credentials')
-            ->with('success', $message);
+            ->with('success', $message)
+            ->with('generation_failures', $failed);
     }
 
     public function showCredentials(): View
@@ -339,10 +375,11 @@ class StudentController extends Controller
     {
         abort_unless($this->canViewCredentials(), 403);
 
-        $password = $student->user_id ? "Uniform@{$student->nim}" : null;
+        $password = $this->studentService->defaultPasswordFor($student);
 
         return response()->json([
             'password' => $password,
+            'message' => $password ? null : 'Password sudah diubah oleh mahasiswa.',
         ]);
     }
 
@@ -351,7 +388,8 @@ class StudentController extends Controller
         $students = Student::whereNotNull('user_id')
             ->with(['studyProgram', 'user'])
             ->orderBy('nim')
-            ->get();
+            ->get()
+            ->each(fn (Student $student) => $student->resolved_password = $this->studentService->defaultPasswordFor($student));
 
         return (new CredentialsExport($students->all()))
             ->download('kredensial-'.now()->format('Ymdhis').'.xlsx');
@@ -377,7 +415,12 @@ class StudentController extends Controller
                 ->with('error', 'Mahasiswa belum memiliki akun.');
         }
 
-        $password = "Uniform@{$student->nim}";
+        $password = $this->studentService->defaultPasswordFor($student);
+
+        if (! $password) {
+            return redirect()->route('students.credentials')
+                ->with('error', "Password {$student->name} ({$student->nim}) sudah diubah, kredensial default tidak berlaku lagi. Gunakan Reset Password bila perlu.");
+        }
 
         $sent = app(NotificationService::class)->resendStudentAccount($student, $password);
 
@@ -400,21 +443,27 @@ class StudentController extends Controller
 
         $sent = 0;
         $failed = 0;
+        $skipped = 0;
 
         foreach ($students as $student) {
-            $password = "Uniform@{$student->nim}";
+            $password = $this->studentService->defaultPasswordFor($student);
+
+            if (! $password) {
+                $skipped++;
+
+                continue;
+            }
+
             $ok = app(NotificationService::class)->resendStudentAccount($student, $password);
             $ok ? $sent++ : $failed++;
         }
 
-        return redirect()->route('students.credentials')
-            ->with($failed ? 'warning' : 'success', "{$sent} email berhasil dikirim ulang".($failed ? ", {$failed} gagal." : '.'));
-    }
+        $message = "{$sent} email berhasil dikirim ulang";
+        $message .= $failed ? ", {$failed} gagal" : '';
+        $message .= $skipped ? ", {$skipped} dilewati karena password sudah diubah." : '.';
 
-    public function destroyCredentials(): RedirectResponse
-    {
         return redirect()->route('students.credentials')
-            ->with('success', 'Data kredensial berhasil diperbarui.');
+            ->with($failed ? 'warning' : 'success', $message);
     }
 
     private function canViewCredentials(): bool

@@ -24,6 +24,13 @@ class ImportController extends Controller
 
     public function result(ImportBatch $importBatch): View
     {
+        $user = auth()->user();
+
+        abort_unless(
+            $user && ($user->hasRole('super_admin') || (int) $importBatch->imported_by === (int) $user->id),
+            403
+        );
+
         return view('import.result', [
             'batch' => $importBatch,
         ]);
@@ -87,6 +94,7 @@ class ImportController extends Controller
 
         $file = $request->file('file');
         $fileName = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+        $this->pruneStaleImportFiles();
         $filePath = $file->storeAs('imports', $fileName, 'local');
 
         $data = Excel::toCollection(
@@ -123,5 +131,17 @@ class ImportController extends Controller
     private function headingRowFor(string $importType): int
     {
         return $importType === 'student' ? 1 : 4;
+    }
+
+    private function pruneStaleImportFiles(int $hours = 2): void
+    {
+        $disk = Storage::disk('local');
+        $cutoff = now()->subHours($hours)->getTimestamp();
+
+        foreach ($disk->files('imports') as $path) {
+            if ($disk->lastModified($path) < $cutoff) {
+                $disk->delete($path);
+            }
+        }
     }
 }

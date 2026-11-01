@@ -106,12 +106,13 @@ class DistributionSchedule extends Model
         }
 
         $now = Carbon::now();
+        $today = Carbon::today();
 
-        if ($this->date->lt($now->startOfDay())) {
+        if ($this->date->lt($today)) {
             return true;
         }
 
-        if ($this->date->eq($now->startOfDay()) && $this->end_time && $now->format('H:i:s') > $this->end_time->format('H:i:s')) {
+        if ($this->date->eq($today) && $this->end_time && $now->format('H:i:s') > $this->end_time->format('H:i:s')) {
             return true;
         }
 

@@ -12,6 +12,7 @@ use App\Models\EmailNotification;
 use App\Models\SmtpSetting;
 use App\Models\Student;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -72,45 +73,71 @@ class NotificationService
 
     public function notifyScheduleCreated(DistributionSchedule $schedule): void
     {
-        $students = Student::query()
+        if (! SmtpSetting::isActiveConfigured()) {
+            Log::info('Notifikasi jadwal dilewati: SMTP belum dikonfigurasi', ['schedule_id' => $schedule->id]);
+
+            return;
+        }
+
+        $schedule->loadMissing('faculty');
+
+        Student::query()
             ->whereNotNull('user_id')
             ->where(fn ($q) => $q->whereNotNull('email_kampus')->orWhereNotNull('email_pribadi'))
-            ->get()
-            ->filter(fn (Student $student) => DistributionSchedule::whereKey($schedule->id)
-                ->forStudent($student)
-                ->exists());
+            ->when($schedule->student_level, fn ($q) => $q->where('student_level', $schedule->student_level))
+            ->when($schedule->study_program_id, fn ($q) => $q->where('study_program_id', $schedule->study_program_id))
+            ->when($schedule->generation_id, fn ($q) => $q->where('generation_id', $schedule->generation_id))
+            ->when($schedule->faculty_id, fn ($q) => $q->whereHas(
+                'studyProgram',
+                fn ($pq) => $pq->where('faculty_id', $schedule->faculty_id)
+            ))
+            ->chunkById(200, function ($students) use ($schedule) {
+                foreach ($students as $student) {
+                    $this->sendScheduleNotification($student, $schedule);
+                }
+            });
+    }
 
-        foreach ($students as $student) {
-            $email = $student->resolveNotificationEmail();
-            $notification = EmailNotification::create([
+    private function sendScheduleNotification(Student $student, DistributionSchedule $schedule): void
+    {
+        $email = $student->resolveNotificationEmail();
+        $notification = EmailNotification::create([
+            'student_id' => $student->id,
+            'schedule_id' => $schedule->id,
+            'type' => 'schedule_created',
+        ]);
+
+        if (! $email) {
+            $notification->update(['status' => 'failed', 'error_message' => 'Email tidak tersedia']);
+
+            return;
+        }
+
+        try {
+            Mail::to($email)->send(new DistributionScheduleMail($student, $schedule));
+            $notification->update(['status' => 'sent', 'sent_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::error('Gagal kirim notifikasi jadwal', [
                 'student_id' => $student->id,
                 'schedule_id' => $schedule->id,
-                'type' => 'schedule_created',
+                'error' => $e->getMessage(),
             ]);
-
-            if (! $email) {
-                $notification->update(['status' => 'failed', 'error_message' => 'Email tidak tersedia']);
-
-                continue;
-            }
-
-            try {
-                Mail::to($email)->send(new DistributionScheduleMail($student, $schedule));
-                $notification->update(['status' => 'sent', 'sent_at' => now()]);
-            } catch (\Throwable $e) {
-                Log::error('Gagal kirim notifikasi jadwal', [
-                    'student_id' => $student->id,
-                    'schedule_id' => $schedule->id,
-                    'error' => $e->getMessage(),
-                ]);
-                $notification->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
-            }
+            $notification->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
         }
     }
 
     public function sendDistributionConfirmation(DistributionTransaction $transaction): void
     {
         $student = $transaction->student;
+
+        if (! $student) {
+            Log::warning('Konfirmasi distribusi dilewati: mahasiswa tidak ditemukan', [
+                'transaction_id' => $transaction->id,
+            ]);
+
+            return;
+        }
+
         $email = $student->resolveNotificationEmail();
 
         if (! $email) {
@@ -179,9 +206,9 @@ class NotificationService
     /**
      * Load the latest account notification per student in a single query.
      *
-     * @param  iterable<\App\Models\Student>  $students
+     * @param  iterable<Student>  $students
      */
-    public function latestAccountNotificationsForStudents($students): \Illuminate\Support\Collection
+    public function latestAccountNotificationsForStudents($students): Collection
     {
         $ids = collect($students)->map(fn ($s) => $s->id)->filter()->unique()->values();
 

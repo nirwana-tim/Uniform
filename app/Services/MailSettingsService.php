@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Crypt;
 
 class MailSettingsService
 {
@@ -44,26 +45,26 @@ class MailSettingsService
      */
     public static function resolve(array $attr): array
     {
-        $mailer   = $attr['mailer'] ?? 'log';
+        $mailer = $attr['mailer'] ?? 'log';
         $fromAddr = $attr['from_address'] ?? config('mail.from.address');
         $fromName = $attr['from_name'] ?? config('mail.from.name', config('app.name'));
 
         // --- Mailer transport config ---
         $mailerConfig = match ($mailer) {
             'smtp' => [
-                'transport'    => 'smtp',
-                'scheme'       => match ($attr['scheme'] ?? null) {
-                    'ssl'  => 'smtps',
-                    'tls'  => 'smtp',
+                'transport' => 'smtp',
+                'scheme' => match ($attr['scheme'] ?? null) {
+                    'ssl' => 'smtps',
+                    'tls' => 'smtp',
                     default => null,
                 },
-                'host'         => $attr['host'] ?? '127.0.0.1',
-                'port'         => $attr['port'] ?? 587,
-                'username'     => $attr['username'] ?? null,
-                'password'     => $attr['password'] ?? null,
-                'timeout'      => null,
+                'host' => $attr['host'] ?? '127.0.0.1',
+                'port' => $attr['port'] ?? 587,
+                'username' => $attr['username'] ?? null,
+                'password' => $attr['password'] ?? null,
+                'timeout' => null,
                 'local_domain' => parse_url(config('app.url', 'http://localhost'), PHP_URL_HOST),
-                'verify_peer'  => ! ($attr['verify_peer'] ?? false),
+                'verify_peer' => ! ($attr['verify_peer'] ?? false),
             ],
             'ses' => [
                 'transport' => 'ses',
@@ -76,11 +77,11 @@ class MailSettingsService
             ],
             'sendmail' => [
                 'transport' => 'sendmail',
-                'path'      => $attr['host'] ?? '/usr/sbin/sendmail -bs -i',
+                'path' => $attr['host'] ?? '/usr/sbin/sendmail -bs -i',
             ],
             'log' => [
                 'transport' => 'log',
-                'channel'   => $attr['username'] ?? 'mail',
+                'channel' => $attr['username'] ?? 'mail',
             ],
             default => [
                 'transport' => $mailer,
@@ -90,7 +91,7 @@ class MailSettingsService
         // --- Services config (for API drivers) ---
         $servicesConfig = match ($mailer) {
             'ses' => [
-                'key'    => $attr['api_key'] ?? null,
+                'key' => $attr['api_key'] ?? null,
                 'secret' => $attr['api_secret'] ?? null,
                 'region' => $attr['api_region'] ?? 'us-east-1',
             ],
@@ -105,7 +106,7 @@ class MailSettingsService
 
         $from = [
             'address' => $fromAddr,
-            'name'    => $fromName,
+            'name' => $fromName,
         ];
 
         return compact('mailer', 'mailerConfig', 'servicesConfig', 'from');
@@ -137,10 +138,10 @@ class MailSettingsService
         $data = self::validateConfig($request);
 
         // Fall back: if password/api_key empty, use DB secret
-        if (empty($data['password']) && $existing && !empty($existing->password)) {
+        if (empty($data['password']) && $existing && ! empty($existing->password)) {
             $data['password'] = $existing->password;
         }
-        if (empty($data['api_key']) && $existing && !empty($existing->api_key)) {
+        if (empty($data['api_key']) && $existing && ! empty($existing->api_key)) {
             $data['api_key'] = $existing->api_key;
         }
 
@@ -179,7 +180,35 @@ class MailSettingsService
     {
         // Sort keys for determinism
         ksort($attr);
+
         return md5(json_encode($attr, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Encrypt a staged config before it touches the session store.
+     * The SMTP password must never be written to the sessions table in plaintext.
+     */
+    public static function stageConfig(array $config): string
+    {
+        return Crypt::encryptString(json_encode($config, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Decrypt a staged config coming from the session store.
+     */
+    public static function revealConfig(mixed $payload): ?array
+    {
+        if (! is_string($payload) || $payload === '') {
+            return null;
+        }
+
+        try {
+            $config = json_decode(Crypt::decryptString($payload), true, 512, JSON_THROW_ON_ERROR);
+
+            return is_array($config) ? $config : null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -191,18 +220,18 @@ class MailSettingsService
         $validKeys = implode(',', array_keys(self::MAILERS));
 
         $validated = $request->validate([
-            'mailer'        => ['required', 'string', "in:{$validKeys}"],
-            'smtp_scheme'   => ['nullable', 'in:tls,ssl'],
-            'smtp_port'     => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'smtp_host'     => ['nullable', 'string'],
+            'mailer' => ['required', 'string', "in:{$validKeys}"],
+            'smtp_scheme' => ['nullable', 'in:tls,ssl'],
+            'smtp_port' => ['nullable', 'integer', 'min:1', 'max:65535'],
+            'smtp_host' => ['nullable', 'string'],
             'smtp_username' => ['nullable', 'string'],
             'smtp_password' => ['nullable', 'string'],
             'smtp_verify_peer' => ['nullable', 'boolean'],
             'sendmail_path' => ['nullable', 'string'],
-            'log_channel'   => ['nullable', 'string'],
-            'api_key'       => ['nullable', 'string'],
-            'from_address'  => ['required', 'email'],
-            'from_name'     => ['nullable', 'string'],
+            'log_channel' => ['nullable', 'string'],
+            'api_key' => ['nullable', 'string'],
+            'from_address' => ['required', 'email'],
+            'from_name' => ['nullable', 'string'],
         ]);
 
         $mailer = $validated['mailer'];
@@ -226,9 +255,9 @@ class MailSettingsService
         // Map unique form names → DB column names
         $mapped = match ($mailer) {
             'smtp' => [
-                'scheme'   => $validated['smtp_scheme'] ?? null,
-                'host'     => $validated['smtp_host'] ?? null,
-                'port'     => $validated['smtp_port'] ?? null,
+                'scheme' => $validated['smtp_scheme'] ?? null,
+                'host' => $validated['smtp_host'] ?? null,
+                'port' => $validated['smtp_port'] ?? null,
                 'username' => $validated['smtp_username'] ?? null,
                 'password' => $validated['smtp_password'] ?? null,
                 'verify_peer' => (bool) ($validated['smtp_verify_peer'] ?? false),
@@ -243,16 +272,16 @@ class MailSettingsService
         };
 
         $data = [
-            'mailer'       => $mailer,
-            'scheme'       => $mapped['scheme'] ?? null,
-            'host'         => $mapped['host'] ?? null,
-            'port'         => $mapped['port'] ?? null,
-            'username'     => $mapped['username'] ?? null,
-            'password'     => $mapped['password'] ?? null,
-            'verify_peer'  => $mapped['verify_peer'] ?? false,
-            'api_key'      => $validated['api_key'] ?? null,
+            'mailer' => $mailer,
+            'scheme' => $mapped['scheme'] ?? null,
+            'host' => $mapped['host'] ?? null,
+            'port' => $mapped['port'] ?? null,
+            'username' => $mapped['username'] ?? null,
+            'password' => $mapped['password'] ?? null,
+            'verify_peer' => $mapped['verify_peer'] ?? false,
+            'api_key' => $validated['api_key'] ?? null,
             'from_address' => $validated['from_address'],
-            'from_name'    => $validated['from_name'],
+            'from_name' => $validated['from_name'],
         ];
 
         // Preserve secrets when empty (don't overwrite with blank)

@@ -29,7 +29,7 @@ class CredentialsExport implements FromCollection, WithHeadings, WithMapping
     public function map($student): array
     {
         $email = $student->resolveNotificationEmail() ?? $student->email_kampus ?? $student->email_pribadi ?? '-';
-        $password = "Uniform@{$student->nim}";
+        $password = $student->resolved_password ?? '';
 
         return [
             $student->nim,

@@ -7,10 +7,10 @@ use App\Imports\EntitlementImport;
 use App\Imports\ItemImport;
 use App\Imports\ItemPriceImport;
 use App\Imports\StockOpnameImport;
+use App\Imports\StockReceiveImport;
 use App\Imports\StudentImport;
 use App\Models\ImportBatch;
 use App\Models\StockOpname;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Validators\ValidationException;
@@ -35,22 +35,16 @@ class ImportService
 
             $importer = $this->resolveImporter($type, $filePath, $stockOpnameId, $userId);
 
-            $collection = Excel::toCollection(null, $filePath)->first() ?? collect();
-            $totalRows = method_exists($importer, 'countRows')
-                ? $importer->countRows($collection)
-                : max(0, $collection->count() - ($importer->headingRow() ?? 1));
-
-            $batch->update(['total_rows' => $totalRows]);
-
             Excel::import($importer, $filePath);
 
-            $successRows = method_exists($importer, 'getImportedCount')
+            $totalRows = (isset($importer) && method_exists($importer, 'getTotalRows')) ? $importer->getTotalRows() : 0;
+            $successRows = (isset($importer) && method_exists($importer, 'getImportedCount'))
                 ? $importer->getImportedCount()
                 : $totalRows;
 
             $batch->update([
                 'status' => 'completed',
-                'total_rows' => method_exists($importer, 'getTotalRows') ? $importer->getTotalRows() : $totalRows,
+                'total_rows' => $totalRows,
                 'success_rows' => $successRows,
             ]);
 
@@ -65,7 +59,7 @@ class ImportService
 
             $batch->update([
                 'status' => 'failed',
-                'total_rows' => method_exists($importer, 'getTotalRows') && $importer->getTotalRows() > 0
+                'total_rows' => (isset($importer) && method_exists($importer, 'getTotalRows')) && $importer->getTotalRows() > 0
                     ? $importer->getTotalRows()
                     : $totalRows,
                 'failed_rows' => collect($failures)->pluck('row')->unique()->count(),
@@ -93,24 +87,24 @@ class ImportService
     protected function resolveImporter(string $type, string $filePath, ?int $stockOpnameId = null, ?int $userId = null): object
     {
         return match ($type) {
-            'student' => new StudentImport(),
-            'eligibility' => new EligibilityImport(),
-            'item' => new ItemImport(),
+            'student' => new StudentImport,
+            'eligibility' => new EligibilityImport,
+            'item' => new ItemImport,
             'stock_opname' => $this->resolveStockOpnameImporter($stockOpnameId, $userId),
-            'item_price' => new ItemPriceImport(),
-            'entitlement' => new EntitlementImport(),
-            'stock_receive' => new \App\Imports\StockReceiveImport(),
+            'item_price' => new ItemPriceImport,
+            'entitlement' => new EntitlementImport,
+            'stock_receive' => new StockReceiveImport,
             default => throw new \InvalidArgumentException("Import type '{$type}' is not supported."),
         };
     }
 
     protected function resolveStockOpnameImporter(?int $stockOpnameId, ?int $userId): StockOpnameImport
     {
-        if (!$stockOpnameId) {
+        if (! $stockOpnameId) {
             $batch = StockOpname::create([
-                'reference_number' => 'IMP-' . now()->format('YmdHis'),
+                'reference_number' => 'IMP-'.now()->format('YmdHis'),
                 'opname_date' => now()->toDateString(),
-                'period' => now()->format('Y') . '/' . (now()->format('y') + 1),
+                'period' => now()->format('Y').'/'.(now()->format('y') + 1),
                 'notes' => 'Auto-created from import',
                 'status' => 'draft',
                 'created_by' => $userId,

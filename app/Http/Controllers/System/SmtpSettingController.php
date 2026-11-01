@@ -21,17 +21,17 @@ class SmtpSettingController extends Controller
 
         if (! $s) {
             $s = new SmtpSetting([
-                'mailer'       => config('mail.default', 'smtp'),
+                'mailer' => config('mail.default', 'smtp'),
                 'from_address' => config('mail.from.address', 'hello@example.com'),
-                'from_name'    => config('mail.from.name', config('app.name')),
+                'from_name' => config('mail.from.name', config('app.name')),
             ]);
         }
 
         return view('system.smtp-settings', [
-            'settings'   => $s,
-            'mailers'    => MailSettingsService::mailers(),
+            'settings' => $s,
+            'mailers' => MailSettingsService::mailers(),
             'apiDrivers' => MailSettingsService::apiDrivers(),
-            'hasOtp'     => (bool) session('smtp.otp'),
+            'hasOtp' => (bool) session('smtp.otp'),
             'hasPending' => (bool) session('smtp.pending_verified'),
         ]);
     }
@@ -47,7 +47,7 @@ class SmtpSettingController extends Controller
 
         // Build config from FORM values (falls back to DB secrets if blank)
         $existing = SmtpSetting::current();
-        $data     = MailSettingsService::buildFromRequest($request, $existing);
+        $data = MailSettingsService::buildFromRequest($request, $existing);
 
         // Only real delivery mailers can be verified via OTP
         if (! MailSettingsService::isVerifiable($data['mailer'])) {
@@ -62,6 +62,7 @@ class SmtpSettingController extends Controller
         if ($payload && isset($payload['sent_at'])) {
             if (! MailSettingsService::canResend((int) $payload['sent_at'])) {
                 $wait = 30 - (now()->getTimestamp() - (int) $payload['sent_at']);
+
                 return $this->otpError("Tunggu {$wait} detik sebelum mengirim ulang.", $request);
             }
         }
@@ -71,7 +72,7 @@ class SmtpSettingController extends Controller
         Mail::forgetMailers();
 
         $code = MailSettingsService::generateOtp();
-        $to   = $validated['to_email'];
+        $to = $validated['to_email'];
 
         try {
             Mail::raw(
@@ -81,18 +82,18 @@ class SmtpSettingController extends Controller
 
             session([
                 'smtp.otp' => [
-                    'code_hash'   => MailSettingsService::otpHashed($code),
-                    'expires_at'  => now()->addMinutes(5)->getTimestamp(),
+                    'code_hash' => MailSettingsService::otpHashed($code),
+                    'expires_at' => now()->addMinutes(5)->getTimestamp(),
                     'config_hash' => $hash,
-                    'config'      => $data,
-                    'to_email'    => $to,
-                    'sent_at'     => now()->getTimestamp(),
+                    'config' => MailSettingsService::stageConfig($data),
+                    'to_email' => $to,
+                    'sent_at' => now()->getTimestamp(),
                 ],
             ]);
 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
-                    'ok'      => true,
+                    'ok' => true,
                     'message' => 'Kode OTP terkirim ke '.$to,
                     'to_email' => $to,
                 ]);
@@ -102,13 +103,13 @@ class SmtpSettingController extends Controller
         } catch (\Throwable $e) {
             session()->forget('smtp.otp');
 
-            \Illuminate\Support\Facades\Log::error('SMTP OTP test gagal', [
+            Log::error('SMTP OTP test gagal', [
                 'mailer' => $data['mailer'] ?? null,
-                'host'   => $data['host'] ?? null,
-                'port'   => $data['port'] ?? null,
-                'to'     => $to,
-                'from'   => $data['from_address'] ?? null,
-                'error'  => $e->getMessage(),
+                'host' => $data['host'] ?? null,
+                'port' => $data['port'] ?? null,
+                'to' => $to,
+                'from' => $data['from_address'] ?? null,
+                'error' => $e->getMessage(),
             ]);
 
             if ($request->ajax() || $request->wantsJson()) {
@@ -137,6 +138,7 @@ class SmtpSettingController extends Controller
         // Expired
         if ((int) $payload['expires_at'] < now()->getTimestamp()) {
             session()->forget('smtp.otp');
+
             return $this->otpError('Kode OTP telah kedaluwarsa. Kirim ulang.', $request);
         }
 
@@ -147,16 +149,24 @@ class SmtpSettingController extends Controller
             return $this->otpError('Kode OTP salah. Periksa kembali atau kirim ulang.', $request);
         }
 
-        // Stage the exact config that was tested (NOT active yet)
+        $testedConfig = MailSettingsService::revealConfig($payload['config'] ?? null);
+
+        if (! $testedConfig || ! hash_equals((string) ($payload['config_hash'] ?? ''), MailSettingsService::configHash($testedConfig))) {
+            session()->forget('smtp.otp');
+
+            return $this->otpError('Konfigurasi yang diuji tidak valid. Kirim ulang kode OTP.', $request);
+        }
+
+        // Stage the exact config that was tested (NOT active yet), encrypted at rest
         session([
-            'smtp.pending_config'   => $payload['config'] ?? [],
+            'smtp.pending_config' => MailSettingsService::stageConfig($testedConfig),
             'smtp.pending_verified' => true,
         ]);
         session()->forget('smtp.otp');
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
-                'ok'      => true,
+                'ok' => true,
                 'message' => 'OTP benar. Klik "Simpan & Aktifkan" untuk memakai konfigurasi baru.',
             ]);
         }
@@ -169,12 +179,14 @@ class SmtpSettingController extends Controller
      */
     public function store(Request $request): RedirectResponse|JsonResponse
     {
-        $pending = session('smtp.pending_config');
+        $pending = MailSettingsService::revealConfig(session('smtp.pending_config'));
 
         if (! $pending) {
+            session()->forget(['smtp.pending_config', 'smtp.pending_verified']);
+
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
-                    'ok'      => false,
+                    'ok' => false,
                     'message' => 'Verifikasi OTP dulu sebelum menyimpan. Klik "Uji Koneksi", kirim kode, lalu verifikasi.',
                 ], 422);
             }
@@ -196,15 +208,15 @@ class SmtpSettingController extends Controller
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
-                'ok'      => true,
+                'ok' => true,
                 'message' => 'Konfigurasi SMTP berhasil diaktifkan.',
-                'config'  => [
-                    'mailer'       => $s->mailer,
-                    'host'         => $s->host,
-                    'port'         => $s->port,
+                'config' => [
+                    'mailer' => $s->mailer,
+                    'host' => $s->host,
+                    'port' => $s->port,
                     'from_address' => $s->from_address,
-                    'from_name'    => $s->from_name,
-                    'is_active'    => (bool) $s->is_active,
+                    'from_name' => $s->from_name,
+                    'is_active' => (bool) $s->is_active,
                 ],
             ]);
         }
