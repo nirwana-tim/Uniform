@@ -10,6 +10,7 @@ use App\Models\ItemSize;
 use App\Models\ItemType;
 use App\Models\ItemVariant;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException as IlluminateValidationException;
@@ -50,78 +51,168 @@ class ItemImport implements ToCollection, WithHeadingRow, WithMultipleSheets
             );
         }
 
-        foreach ($records as $record) {
-            $category = $this->resolveCategory($record['kategori']);
-            $department = $this->resolveDepartment($record['departemen']);
-            $type = $this->resolveType($record['type']);
+        if ($records === []) {
+            return;
+        }
 
-            $baseCode = $this->generateBaseCode($category, $record['gender'], $type, $department);
-            $record['kode'] = $record['kode'] ?: $baseCode;
+        DB::transaction(function () use ($records) {
+            $categoryByLabel = ItemCategory::query()->get()->keyBy('label')->all();
+            $categoryByCode = ItemCategory::query()->get()->keyBy('code')->all();
+            $typeByCode = ItemType::query()->get()->keyBy(fn (ItemType $type): string => strtoupper((string) $type->code))->all();
+            $typeByLabel = ItemType::query()->get()->keyBy('label')->all();
+            $departmentByLabel = ItemDepartment::query()->get()->keyBy('label')->all();
+            $departmentByCode = ItemDepartment::query()->get()->keyBy('code')->all();
 
-            $item = Item::firstOrNew(['code' => $record['kode']]);
-            if (! $item->exists) {
-                $item->fill([
-                    'name' => $record['nama'],
-                    'base_code' => $baseCode,
-                    'gender' => $record['gender'],
-                    'category_id' => $category?->id,
-                    'type_id' => $type?->id,
-                    'department_id' => $department?->id,
-                    'unit' => $record['satuan'],
-                    'selling_price' => $record['harga_jual'] ?? 0,
-                    'hpp' => $record['hpp'] ?? 0,
-                ])->save();
-            }
+            $now = now();
+            $pending = [];
 
-            if (! empty($record['harga_jual']) || ! empty($record['hpp'])) {
-                ItemPrice::updateOrCreate(
-                    [
-                        'item_id' => $item->id,
-                        'effective_date' => now()->startOfYear()->toDateString(),
-                    ],
-                    [
-                        'selling_price' => $record['harga_jual'] ?? 0,
-                        'hpp' => $record['hpp'] ?? 0,
-                    ]
-                );
-            }
+            foreach ($records as $record) {
+                $category = $this->resolveCategory($record['kategori'], $categoryByLabel, $categoryByCode);
+                $department = $this->resolveDepartment($record['departemen'], $departmentByLabel, $departmentByCode);
+                $type = $this->resolveType($record['type'], $typeByCode, $typeByLabel);
 
-            $skusToCreate = collect($this->sizeCodes)->map(fn ($code) => $item->code.'-'.$code)->values()->toArray();
-            $skusToCreate[] = $item->code.'-01';
-            ItemVariant::whereNull('item_id')->whereIn('sku', array_unique($skusToCreate))->delete();
+                $baseCode = $this->generateBaseCode($category, $record['gender'], $type, $department);
+                $code = $record['kode'] ?: $baseCode;
 
-            $variantCreated = false;
-            foreach ($this->sizeCodes as $sizeLabel => $sizeCode) {
-                $qty = $record['sizes'][$sizeLabel] ?? null;
-                if ($qty === null) {
+                if (isset($pending[$code])) {
+                    $pending[$code]['record']['sizes'] = array_merge(
+                        $pending[$code]['record']['sizes'],
+                        $record['sizes']
+                    );
+
                     continue;
                 }
 
-                ItemVariant::updateOrCreate(
-                    [
-                        'item_id' => $item->id,
+                $pending[$code] = [
+                    'record' => $record,
+                    'base_code' => $baseCode,
+                    'category' => $category,
+                    'type' => $type,
+                    'department' => $department,
+                ];
+            }
+
+            $existingCodes = Item::query()
+                ->whereIn('code', array_keys($pending))
+                ->pluck('code')
+                ->flip();
+
+            $newItems = [];
+
+            foreach ($pending as $code => $info) {
+                if ($existingCodes->has($code)) {
+                    continue;
+                }
+
+                $record = $info['record'];
+
+                $newItems[] = [
+                    'name' => $record['nama'],
+                    'code' => $code,
+                    'base_code' => $info['base_code'],
+                    'gender' => $record['gender'],
+                    'category_id' => $info['category']?->id,
+                    'type_id' => $info['type']?->id,
+                    'department_id' => $info['department']?->id,
+                    'unit' => $record['satuan'],
+                    'selling_price' => $record['harga_jual'] ?? 0,
+                    'hpp' => $record['hpp'] ?? 0,
+                    'is_active' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            if ($newItems !== []) {
+                Item::insert($newItems);
+            }
+
+            $itemIds = Item::query()
+                ->whereIn('code', array_keys($pending))
+                ->pluck('id', 'code');
+
+            $priceRows = [];
+            $variantRows = [];
+            $skus = [];
+
+            foreach ($pending as $code => $info) {
+                $itemId = $itemIds[$code] ?? null;
+
+                if (! $itemId) {
+                    continue;
+                }
+
+                $record = $info['record'];
+
+                if (! empty($record['harga_jual']) || ! empty($record['hpp'])) {
+                    $priceRows[] = [
+                        'item_id' => $itemId,
+                        'effective_date' => now()->startOfYear()->toDateString(),
+                        'selling_price' => $record['harga_jual'] ?? 0,
+                        'hpp' => $record['hpp'] ?? 0,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+
+                $itemSkus = array_map(fn (string $sizeCode): string => $code.'-'.$sizeCode, $this->sizeCodes);
+                $itemSkus[] = $code.'-01';
+                $skus = array_merge($skus, $itemSkus);
+
+                $variantCreated = false;
+
+                foreach ($this->sizeCodes as $sizeLabel => $sizeCode) {
+                    if (($record['sizes'][$sizeLabel] ?? null) === null) {
+                        continue;
+                    }
+
+                    $variantRows[] = [
+                        'item_id' => $itemId,
                         'size' => $sizeCode,
-                    ],
-                    [
-                        'sku' => $item->code.'-'.$sizeCode,
                         'size_label' => $sizeLabel,
-                    ]
-                );
-                $variantCreated = true;
-            }
+                        'sku' => $code.'-'.$sizeCode,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                    $variantCreated = true;
+                }
 
-            if (! $variantCreated) {
-                ItemVariant::firstOrCreate(
-                    ['item_id' => $item->id, 'size' => '01'],
-                    [
-                        'sku' => $item->code.'-01',
+                if (! $variantCreated) {
+                    $variantRows[] = [
+                        'item_id' => $itemId,
+                        'size' => '01',
                         'size_label' => 'All Size',
-                    ]
+                        'sku' => $code.'-01',
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
+                }
+            }
+
+            if ($priceRows !== []) {
+                ItemPrice::upsert(
+                    $priceRows,
+                    ['item_id', 'effective_date'],
+                    ['selling_price', 'hpp', 'updated_at']
                 );
             }
 
-            $this->importedCount++;
-        }
+            if ($skus !== []) {
+                ItemVariant::whereNull('item_id')
+                    ->whereIn('sku', array_values(array_unique($skus)))
+                    ->delete();
+            }
+
+            if ($variantRows !== []) {
+                ItemVariant::upsert(
+                    $variantRows,
+                    ['sku'],
+                    ['item_id', 'size', 'size_label', 'updated_at']
+                );
+            }
+
+            $this->importedCount = count($records);
+        });
     }
 
     public function sheets(): array
@@ -239,11 +330,11 @@ class ItemImport implements ToCollection, WithHeadingRow, WithMultipleSheets
                 $failures[] = new Failure($record['row'], $attribute, $messages, $record);
             }
 
-            if ($record['kode'] && in_array($record['kode'], $seenCodes, true)) {
+            if ($record['kode'] && isset($seenCodes[$record['kode']])) {
                 $failures[] = new Failure($record['row'], 'kode', ['Duplicate item code in this file.'], $record);
             }
             if ($record['kode']) {
-                $seenCodes[] = $record['kode'];
+                $seenCodes[$record['kode']] = true;
             }
 
             $record['kategori'] = strtoupper($record['kategori']);
@@ -262,41 +353,60 @@ class ItemImport implements ToCollection, WithHeadingRow, WithMultipleSheets
         ]);
     }
 
-    private function resolveType(?string $value): ?ItemType
+    /**
+     * @param  array<string, ItemType>  $byCode
+     * @param  array<string, ItemType>  $byLabel
+     */
+    private function resolveType(?string $value, array $byCode, array $byLabel): ?ItemType
     {
         if (! $value) {
             return null;
         }
 
-        return ItemType::where('code', strtoupper($value))
-            ->orWhere('label', $value)
-            ->first();
+        return $byCode[strtoupper($value)] ?? $byLabel[$value] ?? null;
     }
 
-    private function resolveCategory(string $name): ?ItemCategory
+    /**
+     * @param  array<string, ItemCategory>  $byLabel
+     * @param  array<string, ItemCategory>  $byCode
+     */
+    private function resolveCategory(string $name, array &$byLabel, array &$byCode): ?ItemCategory
     {
         $code = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $name), 0, 3));
 
-        $category = ItemCategory::where('label', $name)->orWhere('code', $code)->first();
-        if (! $category) {
-            $baseCode = $code;
-            $suffix = 1;
-            while (ItemCategory::where('code', $baseCode)->exists()) {
-                $baseCode = $code.$suffix++;
-            }
-            $category = ItemCategory::create(['label' => $name, 'code' => $baseCode]);
+        if (isset($byLabel[$name])) {
+            return $byLabel[$name];
         }
+
+        if (isset($byCode[$code])) {
+            return $byCode[$code];
+        }
+
+        $baseCode = $code;
+        $suffix = 1;
+        while (isset($byCode[$baseCode])) {
+            $baseCode = $code.$suffix++;
+        }
+
+        $category = ItemCategory::create(['label' => $name, 'code' => $baseCode]);
+
+        $byLabel[$name] = $category;
+        $byCode[$baseCode] = $category;
 
         return $category;
     }
 
-    private function resolveDepartment(string $name): ?ItemDepartment
+    /**
+     * @param  array<string, ItemDepartment>  $byLabel
+     * @param  array<string, ItemDepartment>  $byCode
+     */
+    private function resolveDepartment(string $name, array $byLabel, array $byCode): ?ItemDepartment
     {
         if (! $name) {
             return null;
         }
 
-        return ItemDepartment::where('label', $name)->orWhere('code', $name)->first();
+        return $byLabel[$name] ?? $byCode[$name] ?? null;
     }
 
     private function shouldSkipRow(array $values): bool

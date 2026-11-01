@@ -3,6 +3,7 @@
 namespace App\Services\Master;
 
 use App\Models\Student;
+use App\Models\StudyProgram;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Support\Facades\DB;
@@ -162,18 +163,27 @@ class StudentService
     public function promoteStudents(array $ids, ?int $newGenerationId = null, ?int $newStudyProgramId = null): int
     {
         return DB::transaction(function () use ($ids, $newGenerationId, $newStudyProgramId) {
-            $students = Student::whereIn('id', $ids)->lockForUpdate()->get();
+            $students = Student::with('studyProgram.faculty')
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get();
+
+            $replacementProgram = $newStudyProgramId
+                ? StudyProgram::with('faculty')->find($newStudyProgramId)
+                : null;
+
+            $groups = [];
+            $entitlementCodes = [];
+            $nullEntitlementIds = [];
             $count = 0;
 
             foreach ($students as $student) {
-                $oldValues = $student->toArray();
-
                 $currentLevel = strtoupper(trim((string) ($student->student_level ?? '')));
                 $currentSem = strtoupper(trim((string) ($student->current_semester ?? '')));
 
                 $effective = $currentLevel !== '' ? $currentLevel : $currentSem;
 
-                if ($effective === 'graduated') {
+                if ($effective === 'GRADUATED') {
                     continue;
                 }
 
@@ -216,34 +226,84 @@ class StudentService
                     ],
                 };
 
-                $updates = [
-                    'student_level' => $next['student_level'],
-                    'current_semester' => $next['current_semester'],
-                ];
+                $oldLevel = (string) $student->student_level;
+                $oldStudyProgramId = $student->study_program_id;
+
+                $student->student_level = $next['student_level'];
+                $student->current_semester = $next['current_semester'];
 
                 if ($next['student_level'] === 'graduated') {
-                    $updates['status'] = 'graduated';
+                    $student->status = 'graduated';
                 }
 
                 if ($newGenerationId) {
-                    $updates['generation_id'] = $newGenerationId;
+                    $student->generation_id = $newGenerationId;
                 }
 
                 if ($newStudyProgramId) {
-                    $updates['study_program_id'] = $newStudyProgramId;
+                    $student->study_program_id = $newStudyProgramId;
+
+                    if ($replacementProgram) {
+                        $student->setRelation('studyProgram', $replacementProgram);
+                    }
                 }
 
-                $student->update($updates);
+                $groupKey = $next['student_level'].'|'.$next['current_semester'];
+                $groups[$groupKey]['student_level'] = $next['student_level'];
+                $groups[$groupKey]['current_semester'] = $next['current_semester'];
+
+                if ($next['student_level'] === 'graduated') {
+                    $groups[$groupKey]['status'] = 'graduated';
+                }
+
+                $groups[$groupKey]['ids'][] = $student->id;
 
                 $shouldRefresh = $newGenerationId || $newStudyProgramId
-                    || ($oldValues['student_level'] ?? '') !== $student->fresh()->student_level
-                    || ($oldValues['study_program_id'] ?? null) !== $student->fresh()->study_program_id;
+                    || $oldLevel !== $student->student_level
+                    || $oldStudyProgramId !== $student->study_program_id;
 
                 if ($shouldRefresh) {
-                    $this->refreshEntitlementCode($student);
+                    $code = Student::generateEntitlementCode($student);
+
+                    if ($code === null) {
+                        $nullEntitlementIds[] = $student->id;
+                    } else {
+                        $entitlementCodes[$code][] = $student->id;
+                    }
                 }
 
                 $count++;
+            }
+
+            $now = now();
+
+            $shared = [];
+            if ($newGenerationId) {
+                $shared['generation_id'] = $newGenerationId;
+            }
+            if ($newStudyProgramId) {
+                $shared['study_program_id'] = $newStudyProgramId;
+            }
+
+            foreach ($groups as $group) {
+                $groupIds = $group['ids'];
+                unset($group['ids']);
+
+                Student::whereIn('id', $groupIds)->update($group + $shared + ['updated_at' => $now]);
+            }
+
+            foreach ($entitlementCodes as $code => $codeIds) {
+                Student::whereIn('id', $codeIds)->update([
+                    'entitlement_code' => $code,
+                    'updated_at' => $now,
+                ]);
+            }
+
+            if ($nullEntitlementIds !== []) {
+                Student::whereIn('id', $nullEntitlementIds)->update([
+                    'entitlement_code' => null,
+                    'updated_at' => $now,
+                ]);
             }
 
             return $count;

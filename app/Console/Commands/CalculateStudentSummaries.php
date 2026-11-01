@@ -15,47 +15,82 @@ class CalculateStudentSummaries extends Command
 
     public function handle(): int
     {
-        $query = Student::query();
+        $query = Student::query()->select(['id'])->orderBy('id');
 
         if ($studentId = $this->option('student-id')) {
             $query->where('id', (int) $studentId);
         }
 
-        $query->select(['id'])->orderBy('id')->chunk(500, function ($students) {
-            foreach ($students as $student) {
-                $this->calculateForStudent($student->id);
+        $now = now();
+        $total = 0;
+
+        $query->chunk(500, function ($students) use ($now, &$total) {
+            $studentIds = $students->pluck('id')->all();
+
+            if ($studentIds === []) {
+                return;
             }
+
+            $aggregates = $this->aggregateForStudents($studentIds);
+
+            $rows = [];
+
+            foreach ($studentIds as $studentId) {
+                $aggregate = $aggregates[$studentId] ?? null;
+
+                $rows[] = [
+                    'student_id' => $studentId,
+                    'total_transactions' => $aggregate->total_transactions ?? 0,
+                    'total_items_received' => $aggregate->total_items_received ?? 0,
+                    'total_spend' => $aggregate->total_spend ?? 0,
+                    'last_distribution_at' => $aggregate->last_distribution_at ?? null,
+                    'last_calculated_at' => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+            }
+
+            DB::table('student_summaries')->upsert(
+                $rows,
+                ['student_id'],
+                [
+                    'total_transactions',
+                    'total_items_received',
+                    'total_spend',
+                    'last_distribution_at',
+                    'last_calculated_at',
+                    'updated_at',
+                ]
+            );
+
+            $total += count($rows);
         });
 
-        $this->info('Student summaries updated.');
+        $this->info("Student summaries updated. ({$total} mahasiswa)");
 
         return self::SUCCESS;
     }
 
-    private function calculateForStudent(int $studentId): void
+    /**
+     * @param  array<int, int>  $studentIds
+     * @return array<int, object>
+     */
+    private function aggregateForStudents(array $studentIds): array
     {
-        $aggregate = DistributionTransaction::select(
-            DB::raw('COUNT(DISTINCT distribution_transactions.id) as total_transactions'),
-            DB::raw('COALESCE(SUM(di.quantity), 0) as total_items_received'),
-            DB::raw('COALESCE(SUM(di.quantity * di.selling_price_at_distribution), 0) as total_spend'),
-            DB::raw('MAX(pickup_time) as last_distribution_at')
-        )
+        return DistributionTransaction::query()
             ->leftJoin('distribution_items as di', 'distribution_transactions.id', '=', 'di.transaction_id')
-            ->where('distribution_transactions.student_id', $studentId)
+            ->whereIn('distribution_transactions.student_id', $studentIds)
             ->whereNotIn('distribution_transactions.status', ['cancelled'])
-            ->first();
-
-        DB::table('student_summaries')->updateOrInsert(
-            ['student_id' => $studentId],
-            [
-                'total_transactions' => $aggregate->total_transactions ?? 0,
-                'total_items_received' => $aggregate->total_items_received ?? 0,
-                'total_spend' => $aggregate->total_spend ?? 0,
-                'last_distribution_at' => $aggregate->last_distribution_at,
-                'last_calculated_at' => now(),
-                'updated_at' => now(),
-                'created_at' => now(),
-            ]
-        );
+            ->groupBy('distribution_transactions.student_id')
+            ->select([
+                'distribution_transactions.student_id',
+                DB::raw('COUNT(DISTINCT distribution_transactions.id) as total_transactions'),
+                DB::raw('COALESCE(SUM(di.quantity), 0) as total_items_received'),
+                DB::raw('COALESCE(SUM(di.quantity * di.selling_price_at_distribution), 0) as total_spend'),
+                DB::raw('MAX(distribution_transactions.pickup_time) as last_distribution_at'),
+            ])
+            ->get()
+            ->keyBy('student_id')
+            ->all();
     }
 }

@@ -7,15 +7,16 @@ use App\Models\ItemPrice;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException as IlluminateValidationException;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Validators\Failure;
 use Maatwebsite\Excel\Validators\ValidationException;
-use Illuminate\Validation\ValidationException as IlluminateValidationException;
 
 class ItemPriceImport implements ToCollection, WithHeadingRow
 {
     private int $importedCount = 0;
+
     private int $totalRows = 0;
 
     public function headingRow(): int
@@ -37,26 +38,43 @@ class ItemPriceImport implements ToCollection, WithHeadingRow
         }
 
         DB::transaction(function () use ($records) {
+            $codes = array_values(array_unique(array_filter(array_column($records, 'kode_barang'))));
+
+            if ($codes === []) {
+                return;
+            }
+
+            $itemIds = Item::query()->whereIn('code', $codes)->pluck('id', 'code');
+
+            $now = now();
+            $rows = [];
+
             foreach ($records as $record) {
-                $item = Item::where('code', $record['kode_barang'])->first();
-                if (! $item) {
+                $itemId = $itemIds[$record['kode_barang']] ?? null;
+                if (! $itemId) {
                     continue;
                 }
 
                 $effectiveDate = $this->resolveEffectiveDate($record['tahun_akademik'] ?? null);
 
-                ItemPrice::updateOrCreate(
-                    [
-                        'item_id' => $item->id,
-                        'effective_date' => $effectiveDate,
-                    ],
-                    [
-                        'selling_price' => $record['harga_jual'],
-                        'hpp' => $record['hpp'],
-                    ]
-                );
+                $rows[] = [
+                    'item_id' => $itemId,
+                    'effective_date' => $effectiveDate,
+                    'selling_price' => $record['harga_jual'],
+                    'hpp' => $record['hpp'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
 
                 $this->importedCount++;
+            }
+
+            if ($rows !== []) {
+                ItemPrice::upsert(
+                    $rows,
+                    ['item_id', 'effective_date'],
+                    ['selling_price', 'hpp', 'updated_at']
+                );
             }
         });
     }
@@ -70,6 +88,7 @@ class ItemPriceImport implements ToCollection, WithHeadingRow
         if (preg_match('/^(\d{2,4})\s*\/\s*(\d{2})$/', $tahunAkademik, $matches)) {
             $year = (int) $matches[1];
             $year = $year < 100 ? 2000 + $year : $year;
+
             return "{$year}-07-01";
         }
 
@@ -158,6 +177,7 @@ class ItemPriceImport implements ToCollection, WithHeadingRow
             $value = number_format((float) $value, 0, '', '');
         }
         $value = ltrim(trim((string) $value), "'");
+
         return $value === '' ? null : $value;
     }
 
@@ -184,6 +204,7 @@ class ItemPriceImport implements ToCollection, WithHeadingRow
         }
 
         $cleaned = preg_replace('/[^0-9.]/', '', $text);
+
         return $cleaned !== '' ? (float) $cleaned : null;
     }
 }

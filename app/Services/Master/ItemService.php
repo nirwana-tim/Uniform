@@ -9,6 +9,8 @@ use App\Models\ItemSize;
 use App\Models\ItemType;
 use App\Models\ItemVariant;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class ItemService
@@ -56,16 +58,7 @@ class ItemService
         $skusToCreate = $sizes->map(fn ($size) => $code.'-'.$size->code)->toArray();
         ItemVariant::whereNull('item_id')->whereIn('sku', $skusToCreate)->delete();
 
-        foreach ($sizes as $size) {
-            $item->variants()->firstOrCreate(
-                ['size_id' => $size->id],
-                [
-                    'size' => $size->code,
-                    'size_label' => $size->label,
-                    'sku' => $code.'-'.$size->code,
-                ]
-            );
-        }
+        $this->insertMissingVariants($item, $sizes, $code, false);
 
         return $item;
     }
@@ -99,29 +92,59 @@ class ItemService
         $item->update($updateData);
 
         if ($newCode !== $old['code']) {
-            $item->load('variants');
-            foreach ($item->variants as $var) {
-                $var->update([
-                    'sku' => $newCode.'-'.$var->size,
+            $quotedCode = DB::connection()->getPdo()->quote($newCode);
+
+            DB::table('item_variants')
+                ->where('item_id', $item->id)
+                ->update([
+                    'sku' => DB::raw("CONCAT({$quotedCode}, '-', size)"),
+                    'updated_at' => now(),
                 ]);
-            }
         }
 
         $skusToCreate = $sizes->map(fn ($size) => $newCode.'-'.$size->code)->toArray();
         ItemVariant::whereNull('item_id')->whereIn('sku', $skusToCreate)->delete();
 
-        foreach ($sizes as $size) {
-            $item->variants()->firstOrCreate(
-                ['size_id' => $size->id],
-                [
-                    'size' => $size->code,
-                    'size_label' => $size->label,
-                    'sku' => $newCode.'-'.$size->code,
-                ]
-            );
-        }
+        $this->insertMissingVariants($item, $sizes, $newCode);
 
         return $item;
+    }
+
+    private function insertMissingVariants(Item $item, Collection $sizes, string $code, bool $checkExisting = true): void
+    {
+        if ($sizes->isEmpty()) {
+            return;
+        }
+
+        $existingSizeIds = $checkExisting
+            ? $item->variants()
+                ->whereIn('size_id', $sizes->pluck('id'))
+                ->pluck('size_id')
+                ->flip()
+            : collect();
+
+        $now = now();
+        $rows = [];
+
+        foreach ($sizes as $size) {
+            if ($existingSizeIds->has($size->id)) {
+                continue;
+            }
+
+            $rows[] = [
+                'item_id' => $item->id,
+                'size_id' => $size->id,
+                'size' => $size->code,
+                'size_label' => $size->label,
+                'sku' => $code.'-'.$size->code,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if ($rows !== []) {
+            ItemVariant::insert($rows);
+        }
     }
 
     public function destroy(Item $item): void

@@ -16,7 +16,7 @@ class DistributionConfirmationMail extends Mailable
     public function __construct(
         public readonly DistributionTransaction $transaction,
     ) {
-        $this->transaction->load(['student', 'schedule', 'items.item']);
+        $this->transaction->loadMissing(['student', 'schedule', 'items.item']);
     }
 
     public function envelope(): Envelope

@@ -45,6 +45,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         $groups = $this->groupRecords($records);
         $groups = $this->resolveGroups($groups);
         $stockService = app(StockService::class);
+        $vendors = $this->resolveVendors($groups);
 
         $existingRefs = StockReceive::whereIn('reference_number', array_keys($groups))
             ->pluck('reference_number')
@@ -72,9 +73,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         }
 
         foreach ($groups as $group) {
-            $vendor = Vendor::firstOrCreate(
-                ['name' => trim($group['vendor_name'])]
-            );
+            $vendor = $vendors[trim($group['vendor_name'])];
 
             $data = [
                 'vendor_id' => $vendor->id,
@@ -186,12 +185,26 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         $groups = [];
         $stockService = app(StockService::class);
 
+        $pendingPerDate = [];
         foreach ($records as $record) {
+            if (! $record['nomor_ref']) {
+                $date = $record['tanggal'] ?? now()->toDateString();
+                $pendingPerDate[$date] = ($pendingPerDate[$date] ?? 0) + 1;
+            }
+        }
+
+        $nextSequence = [];
+        foreach ($pendingPerDate as $date => $count) {
+            $nextSequence[$date] = $stockService->nextSequenceBlock('SR', $date, $count);
+        }
+
+        foreach ($records as $record) {
+            $date = $record['tanggal'] ?? now()->toDateString();
             $ref = $record['nomor_ref'];
 
             if (! $ref) {
-                $sequence = $stockService->nextSequence('SR', $record['tanggal'] ?? now()->toDateString());
-                $dateString = str_replace('-', '', $record['tanggal'] ?? now()->toDateString());
+                $sequence = $nextSequence[$date]++;
+                $dateString = str_replace('-', '', $date);
                 $ref = 'SR-'.$dateString.'-'.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
             }
 
@@ -213,20 +226,79 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         return $groups;
     }
 
+    /**
+     * @return array<string, Vendor>
+     */
+    private function resolveVendors(array $groups): array
+    {
+        $names = [];
+
+        foreach ($groups as $group) {
+            $names[trim($group['vendor_name'])] = true;
+        }
+
+        $vendors = Vendor::query()
+            ->whereIn('name', array_keys($names))
+            ->get()
+            ->keyBy('name')
+            ->all();
+
+        $now = now();
+        $missing = [];
+
+        foreach (array_keys($names) as $name) {
+            if (! isset($vendors[$name])) {
+                $missing[] = ['name' => $name, 'created_at' => $now, 'updated_at' => $now];
+            }
+        }
+
+        if ($missing !== []) {
+            Vendor::insert($missing);
+
+            $vendors = Vendor::query()
+                ->whereIn('name', array_keys($names))
+                ->get()
+                ->keyBy('name')
+                ->all();
+        }
+
+        return $vendors;
+    }
+
     private function resolveGroups(array $groups): array
     {
         $failures = [];
+        $codes = [];
+
+        foreach ($groups as $group) {
+            foreach ($group['items'] as $itemData) {
+                $codes[$itemData['kode_barang']] = true;
+            }
+        }
+
+        $index = [];
+        $items = Item::with('variants')
+            ->where(function ($q) use ($codes) {
+                $q->whereIn('code', array_keys($codes))
+                    ->orWhereIn('base_code', array_keys($codes));
+            })
+            ->get();
+
+        foreach ($items as $item) {
+            $index[$item->code][] = $item;
+
+            if ($item->base_code && $item->base_code !== $item->code) {
+                $index[$item->base_code][] = $item;
+            }
+        }
 
         foreach ($groups as $key => $group) {
             $resolvedItems = [];
 
             foreach ($group['items'] as $itemData) {
-                $items = Item::where(function ($q) use ($itemData) {
-                    $q->where('code', $itemData['kode_barang'])
-                        ->orWhere('base_code', $itemData['kode_barang']);
-                })->get();
+                $matches = $index[$itemData['kode_barang']] ?? [];
 
-                if ($items->isEmpty()) {
+                if ($matches === []) {
                     $failures[] = new Failure(
                         $itemData['row'],
                         'kode_barang',
@@ -237,7 +309,7 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
                     continue;
                 }
 
-                if ($items->count() > 1) {
+                if (count($matches) > 1) {
                     $failures[] = new Failure(
                         $itemData['row'],
                         'kode_barang',
@@ -248,8 +320,8 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
                     continue;
                 }
 
-                $item = $items->first();
-                $variants = $item->variants()->get();
+                $item = $matches[0];
+                $variants = $item->variants;
 
                 if ($itemData['sku']) {
                     $variant = $variants->firstWhere('sku', $itemData['sku']);

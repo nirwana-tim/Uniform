@@ -31,6 +31,12 @@ class StudentImport implements ToCollection, WithMultipleSheets
     /** @var Collection<int, StudyProgram>|null */
     private ?Collection $studyPrograms = null;
 
+    /** @var Collection<string, StudentGeneration> */
+    private Collection $generations;
+
+    /** @var Collection<string, int> */
+    private Collection $studentIds;
+
     public function collection(Collection $rows): void
     {
         $this->processRows($rows);
@@ -41,6 +47,7 @@ class StudentImport implements ToCollection, WithMultipleSheets
         $records = $this->recordsFromRows($rows);
         $this->totalRows = count($records);
         $this->studyPrograms = StudyProgram::query()->with('faculty')->get();
+        $this->generations = StudentGeneration::query()->get()->keyBy('code');
 
         $failures = $this->validateRecords($records);
 
@@ -62,65 +69,172 @@ class StudentImport implements ToCollection, WithMultipleSheets
             || str_contains(strtolower($i->code), 'sho'));
 
         DB::transaction(function () use ($records, $shirtItem, $shoeItem) {
-            foreach ($records as $record) {
-                $student = Student::firstOrNew(
-                    ['nim' => $record['nim']],
-                );
-                $student->fill([
-                    'name' => $record['name'],
-                    'gender' => $record['gender'],
-                    'email_kampus' => $record['email_kampus'],
-                    'email_pribadi' => $record['email_pribadi'],
-                    'study_program_id' => $record['study_program']->id,
-                    'generation_id' => $record['program_level']->id,
-                    'student_level' => $record['student_level'],
-                    'entitlement_code' => ($record['student_level'] ?? 'Y1S1')
-                        .($record['study_program']->faculty->code ?? 'FHS')
-                        .$record['study_program']->code,
-                ])->save();
+            $this->persistStudents($records);
+            $this->persistSizes($records, $shirtItem, $shoeItem);
+            $this->importedCount = count($records);
+        });
+    }
 
-                if (empty($record['shirt_size']) && empty($record['shoe_size'])) {
-                    $this->importedCount++;
+    /**
+     * Upsert every student row in one statement, then read the ids back once.
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     */
+    private function persistStudents(array $records): void
+    {
+        if ($records === []) {
+            $this->studentIds = collect();
+
+            return;
+        }
+
+        $now = now();
+        $rows = [];
+
+        foreach ($records as $record) {
+            $rows[] = [
+                'nim' => $record['nim'],
+                'name' => $record['name'],
+                'gender' => $record['gender'],
+                'email_kampus' => $record['email_kampus'],
+                'email_pribadi' => $record['email_pribadi'],
+                'study_program_id' => $record['study_program']->id,
+                'generation_id' => $this->resolveProgramLevel($record['nim'])->id,
+                'student_level' => $record['student_level'],
+                'entitlement_code' => ($record['student_level'] ?? 'Y1S1')
+                    .($record['study_program']->faculty->code ?? 'FHS')
+                    .$record['study_program']->code,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        Student::upsert(
+            $rows,
+            ['nim'],
+            [
+                'name',
+                'gender',
+                'email_kampus',
+                'email_pribadi',
+                'study_program_id',
+                'generation_id',
+                'student_level',
+                'entitlement_code',
+                'updated_at',
+            ]
+        );
+
+        $this->studentIds = Student::query()
+            ->whereIn('nim', array_column($rows, 'nim'))
+            ->pluck('id', 'nim');
+    }
+
+    /**
+     * Create the missing size profiles in one insert and upsert every size row
+     * in one statement, instead of four queries per student.
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     */
+    private function persistSizes(array $records, ?Item $shirtItem, ?Item $shoeItem): void
+    {
+        $withSizes = array_values(array_filter(
+            $records,
+            fn (array $record): bool => ! empty($record['shirt_size']) || ! empty($record['shoe_size'])
+        ));
+
+        if ($withSizes === []) {
+            return;
+        }
+
+        $now = now();
+        $studentIds = $this->studentIds->all();
+        $existingProfiles = StudentSizeProfile::query()
+            ->whereIn('student_id', array_values($studentIds))
+            ->pluck('student_id')
+            ->flip();
+
+        $newProfiles = [];
+        foreach ($withSizes as $record) {
+            $studentId = $studentIds[$record['nim']] ?? null;
+
+            if (! $studentId || $existingProfiles->has($studentId)) {
+                continue;
+            }
+
+            $existingProfiles[$studentId] = true;
+            $newProfiles[] = [
+                'student_id' => $studentId,
+                'is_filled' => true,
+                'filled_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        if ($newProfiles !== []) {
+            StudentSizeProfile::insert($newProfiles);
+        }
+
+        $profiles = StudentSizeProfile::query()
+            ->whereIn('student_id', array_values($studentIds))
+            ->pluck('id', 'student_id');
+
+        $sizeRows = [];
+        $seen = [];
+
+        foreach ($withSizes as $record) {
+            $studentId = $studentIds[$record['nim']] ?? null;
+            $profileId = $studentId ? $profiles[$studentId] ?? null : null;
+
+            if (! $profileId) {
+                continue;
+            }
+
+            $pairs = [
+                ['item' => $shirtItem, 'size' => $record['shirt_size'], 'label' => 'seragam'],
+                ['item' => $shoeItem, 'size' => $record['shoe_size'], 'label' => 'sepatu'],
+            ];
+
+            foreach ($pairs as $pair) {
+                if (empty($pair['size'])) {
+                    continue;
+                }
+
+                if (! $pair['item']) {
+                    Log::warning("Item {$pair['label']} tidak ditemukan; ukuran dilewati.", [
+                        'nim' => $record['nim'],
+                        'size' => $pair['size'],
+                    ]);
 
                     continue;
                 }
 
-                $profile = StudentSizeProfile::firstOrCreate(
-                    ['student_id' => $student->id],
-                    ['is_filled' => true, 'filled_at' => now()]
-                );
+                $key = $profileId.'-'.$pair['item']->id;
 
-                if (! empty($record['shirt_size'])) {
-                    if ($shirtItem) {
-                        StudentSizeItem::updateOrCreate(
-                            ['size_profile_id' => $profile->id, 'item_id' => $shirtItem->id],
-                            ['size' => $record['shirt_size'], 'change_count' => 0]
-                        );
-                    } else {
-                        Log::warning('Item seragam tidak ditemukan; ukuran baju dilewati.', [
-                            'nim' => $record['nim'],
-                            'size' => $record['shirt_size'],
-                        ]);
-                    }
+                if (isset($seen[$key])) {
+                    continue;
                 }
 
-                if (! empty($record['shoe_size'])) {
-                    if ($shoeItem) {
-                        StudentSizeItem::updateOrCreate(
-                            ['size_profile_id' => $profile->id, 'item_id' => $shoeItem->id],
-                            ['size' => $record['shoe_size'], 'change_count' => 0]
-                        );
-                    } else {
-                        Log::warning('Item sepatu tidak ditemukan; ukuran sepatu dilewati.', [
-                            'nim' => $record['nim'],
-                            'size' => $record['shoe_size'],
-                        ]);
-                    }
-                }
-
-                $this->importedCount++;
+                $seen[$key] = true;
+                $sizeRows[] = [
+                    'size_profile_id' => $profileId,
+                    'item_id' => $pair['item']->id,
+                    'size' => $pair['size'],
+                    'change_count' => 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
-        });
+        }
+
+        if ($sizeRows !== []) {
+            StudentSizeItem::upsert(
+                $sizeRows,
+                ['size_profile_id', 'item_id'],
+                ['size', 'change_count', 'updated_at']
+            );
+        }
     }
 
     public function sheets(): array
@@ -208,10 +322,10 @@ class StudentImport implements ToCollection, WithMultipleSheets
                 $failures[] = new Failure($record['row'], $attribute, $messages, $record);
             }
 
-            if (in_array($record['nim'], $seenNims, true)) {
+            if (isset($seenNims[$record['nim']])) {
                 $failures[] = new Failure($record['row'], 'nim', ['NIM duplikat pada file ini.'], $record);
             }
-            $seenNims[] = $record['nim'];
+            $seenNims[$record['nim']] = true;
 
             foreach (['email_kampus', 'email_pribadi'] as $field) {
                 $email = $record[$field] ?? null;
@@ -379,9 +493,30 @@ class StudentImport implements ToCollection, WithMultipleSheets
 
     private function resolveProgramLevel(?string $nim): StudentGeneration
     {
-        return app(GenerationResolverService::class)->resolveFromNim($nim)
-            ?? StudentGeneration::first()
-            ?? StudentGeneration::create(['code' => '2526', 'name' => '2025/2026']);
+        $code = $nim ? app(GenerationResolverService::class)->parseCodeFromNim($nim) : null;
+
+        if ($code !== null) {
+            if (! isset($this->generations[$code])) {
+                $yearPrefix = '20'.substr($code, 0, 2);
+                $yearSuffix = '20'.substr($code, 2, 2);
+
+                $this->generations[$code] = StudentGeneration::firstOrCreate(
+                    ['code' => $code],
+                    ['name' => $yearPrefix.'/'.$yearSuffix]
+                );
+            }
+
+            return $this->generations[$code];
+        }
+
+        if ($this->generations->isEmpty()) {
+            $generation = StudentGeneration::first()
+                ?? StudentGeneration::create(['code' => '2526', 'name' => '2025/2026']);
+
+            $this->generations[$generation->code] = $generation;
+        }
+
+        return $this->generations->first();
     }
 
     private function normalizeGender(?string $gender): ?string

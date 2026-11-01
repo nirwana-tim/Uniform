@@ -18,6 +18,15 @@ use Illuminate\Support\Facades\Log;
 
 class StudentSizeService
 {
+    /** @var array<string, int|null> */
+    private array $categoryIds = [];
+
+    /** @var array<string, array<int, Collection<int, array{code: string, label: string}>>> */
+    private array $sizePairs = [];
+
+    /** @var array<string, array<int, int>> */
+    private array $categoryItemIds = [];
+
     /**
      * @return \Illuminate\Database\Eloquent\Collection<int, Item>
      */
@@ -141,34 +150,69 @@ class StudentSizeService
             return null;
         }
 
-        $categoryId = ItemCategory::where('code', $categoryCode)->value('id');
+        $categoryId = $this->resolveCategoryId($categoryCode);
         if (! $categoryId) {
             return ['code' => $value, 'label' => $value];
         }
 
-        $pairs = ItemSize::whereHas('categories', fn ($q) => $q->where('item_category_id', $categoryId))
-            ->get(['code', 'label'])
-            ->map(fn ($size) => ['code' => $size->code, 'label' => $size->label]);
+        $pairs = $this->resolveSizePairs($categoryCode, $categoryId);
 
-        if ($pairs->isNotEmpty()) {
-            $found = $this->resolveFromPairs($pairs, $value);
-            if ($found) {
-                return $found;
+        foreach ($pairs as $group) {
+            if ($group->isEmpty()) {
+                continue;
             }
-        }
 
-        $pairs = ItemVariant::whereHas('item', fn ($q) => $q->where('category_id', $categoryId))
-            ->get(['size', 'size_label'])
-            ->map(fn ($variant) => ['code' => $variant->size, 'label' => $variant->size_label]);
-
-        if ($pairs->isNotEmpty()) {
-            $found = $this->resolveFromPairs($pairs, $value);
+            $found = $this->resolveFromPairs($group, $value);
             if ($found) {
                 return $found;
             }
         }
 
         return ['code' => $value, 'label' => $value];
+    }
+
+    private function resolveCategoryId(string $categoryCode): ?int
+    {
+        if (! array_key_exists($categoryCode, $this->categoryIds)) {
+            $this->categoryIds[$categoryCode] = ItemCategory::where('code', $categoryCode)->value('id');
+        }
+
+        return $this->categoryIds[$categoryCode];
+    }
+
+    /**
+     * @return array<int, Collection<int, array{code: string, label: string}>>
+     */
+    private function resolveSizePairs(string $categoryCode, int $categoryId): array
+    {
+        if (array_key_exists($categoryCode, $this->sizePairs)) {
+            return $this->sizePairs[$categoryCode];
+        }
+
+        $sizePairs = ItemSize::whereHas('categories', fn ($q) => $q->where('item_category_id', $categoryId))
+            ->get(['code', 'label'])
+            ->map(fn ($size) => ['code' => $size->code, 'label' => $size->label]);
+
+        $variantPairs = ItemVariant::whereHas('item', fn ($q) => $q->where('category_id', $categoryId))
+            ->get(['size', 'size_label'])
+            ->map(fn ($variant) => ['code' => $variant->size, 'label' => $variant->size_label]);
+
+        return $this->sizePairs[$categoryCode] = [$sizePairs, $variantPairs];
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function resolveCategoryItemIds(string $categoryCode, int $categoryId): array
+    {
+        if (! array_key_exists($categoryCode, $this->categoryItemIds)) {
+            $this->categoryItemIds[$categoryCode] = Item::where('category_id', $categoryId)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+        }
+
+        return $this->categoryItemIds[$categoryCode];
     }
 
     /**
@@ -235,26 +279,45 @@ class StudentSizeService
             return;
         }
 
-        $normalized = $this->normalizeSize($size, $categoryCode);
-        $code = $normalized['code'] ?? $size;
-
-        $categoryId = ItemCategory::where('code', $categoryCode)->value('id');
+        $categoryId = $this->resolveCategoryId($categoryCode);
         if (! $categoryId) {
             return;
         }
 
-        $itemIds = Item::where('category_id', $categoryId)->pluck('id');
+        $normalized = $this->normalizeSize($size, $categoryCode);
+        $code = $normalized['code'] ?? $size;
+
+        $itemIds = $this->resolveCategoryItemIds($categoryCode, $categoryId);
+        if ($itemIds === []) {
+            return;
+        }
+
+        $existing = StudentSizeItem::where('size_profile_id', $profile->id)
+            ->whereIn('item_id', $itemIds)
+            ->get(['item_id', 'change_count', 'created_at'])
+            ->keyBy('item_id');
+
+        $now = now();
+        $rows = [];
 
         foreach ($itemIds as $itemId) {
-            $existing = StudentSizeItem::where('size_profile_id', $profile->id)
-                ->where('item_id', $itemId)
-                ->first();
+            $current = $existing->get($itemId);
 
-            StudentSizeItem::updateOrCreate(
-                ['size_profile_id' => $profile->id, 'item_id' => $itemId],
-                ['size' => $code, 'change_count' => ($existing ? $existing->change_count : 0) + 1]
-            );
+            $rows[] = [
+                'size_profile_id' => $profile->id,
+                'item_id' => $itemId,
+                'size' => $code,
+                'change_count' => (int) ($current?->change_count ?? 0) + 1,
+                'created_at' => $current?->created_at ?? $now,
+                'updated_at' => $now,
+            ];
         }
+
+        StudentSizeItem::upsert(
+            $rows,
+            ['size_profile_id', 'item_id'],
+            ['size', 'change_count', 'updated_at']
+        );
     }
 
     /**

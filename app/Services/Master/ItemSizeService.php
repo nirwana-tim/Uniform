@@ -14,13 +14,15 @@ class ItemSizeService
         unset($data['categories']);
 
         $label = trim($data['label']);
+        $existingCodes = ItemSize::pluck('code')->flip();
+
         if (is_numeric($label)) {
             $code = str_pad($label, 2, '0', STR_PAD_LEFT);
         } else {
             $code = null;
             for ($i = 1; $i <= 99; $i++) {
                 $candidate = str_pad($i, 2, '0', STR_PAD_LEFT);
-                if (! ItemSize::where('code', $candidate)->exists()) {
+                if (! $existingCodes->has($candidate)) {
                     $code = $candidate;
                     break;
                 }
@@ -30,7 +32,7 @@ class ItemSizeService
             }
         }
 
-        if (ItemSize::where('code', $code)->exists()) {
+        if ($existingCodes->has($code)) {
             throw ValidationException::withMessages([
                 'label' => "Kode ukuran '{$code}' untuk label '{$label}' sudah terpakai. Harap gunakan label lain.",
             ]);

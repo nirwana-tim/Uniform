@@ -119,16 +119,20 @@ class ScanController extends Controller
             ->where('date', '<=', today())
             ->forStudent($student)
             ->orderBy('date', 'desc')
-            ->get()
-            ->map(function ($schedule) use ($student) {
-                $hasTransaction = DistributionTransaction::where('schedule_id', $schedule->id)
-                    ->where('student_id', $student->id)
-                    ->whereIn('status', ['completed', 'partial'])
-                    ->exists();
-                $schedule->student_has_taken = $hasTransaction;
+            ->get();
 
-                return $schedule;
-            });
+        $takenScheduleIds = $expiredSchedules->isEmpty()
+            ? collect()
+            : DistributionTransaction::whereIn('schedule_id', $expiredSchedules->pluck('id'))
+                ->where('student_id', $student->id)
+                ->whereIn('status', ['completed', 'partial'])
+                ->distinct()
+                ->pluck('schedule_id')
+                ->flip();
+
+        $expiredSchedules->each(function ($schedule) use ($takenScheduleIds) {
+            $schedule->student_has_taken = $takenScheduleIds->has($schedule->id);
+        });
 
         return view('distribution.select-schedule', compact('student', 'expiredSchedules'));
     }

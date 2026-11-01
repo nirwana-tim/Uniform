@@ -18,7 +18,7 @@ Schedule::command(CleanupImportFiles::class, ['--days=30'])->dailyAt('02:05');
 
 Schedule::command('queue:prune-failed', ['--hours=168'])->dailyAt('02:10');
 
-Schedule::command(CalculateStudentSummaries::class)->dailyAt('02:30');
+Schedule::command(CalculateStudentSummaries::class)->dailyAt('02:30')->withoutOverlapping();
 
 Schedule::command(AutoPromoteStudents::class, ['--due'])
     ->dailyAt('03:00')

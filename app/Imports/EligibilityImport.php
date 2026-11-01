@@ -7,15 +7,16 @@ use App\Models\Student;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException as IlluminateValidationException;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Validators\Failure;
 use Maatwebsite\Excel\Validators\ValidationException;
-use Illuminate\Validation\ValidationException as IlluminateValidationException;
 
 class EligibilityImport implements ToCollection, WithHeadingRow
 {
     private int $importedCount = 0;
+
     private int $totalRows = 0;
 
     public function headingRow(): int
@@ -37,24 +38,43 @@ class EligibilityImport implements ToCollection, WithHeadingRow
         }
 
         DB::transaction(function () use ($records) {
+            $nims = array_values(array_unique(array_filter(array_column($records, 'nim'))));
+
+            if ($nims === []) {
+                return;
+            }
+
+            $studentIds = Student::query()->whereIn('nim', $nims)->pluck('id', 'nim');
+
+            $now = now();
+            $rows = [];
+
             foreach ($records as $record) {
-                $student = Student::where('nim', $record['nim'])->first();
-                if (! $student) {
+                $studentId = $studentIds[$record['nim']] ?? null;
+                if (! $studentId) {
                     continue;
                 }
 
                 $statusBayar = strtolower(trim((string) $record['status_bayar']));
                 $isEligible = in_array($statusBayar, ['lunas', 'bayar', 'ya', '1', 'true', 'yes', 'sudah'], true);
 
-                EligibilityRecord::updateOrCreate(
-                    ['student_id' => $student->id],
-                    [
-                        'is_eligible' => $isEligible,
-                        'payment_status' => $record['status_bayar'],
-                    ]
-                );
+                $rows[] = [
+                    'student_id' => $studentId,
+                    'is_eligible' => $isEligible,
+                    'payment_status' => $record['status_bayar'],
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
 
                 $this->importedCount++;
+            }
+
+            if ($rows !== []) {
+                EligibilityRecord::upsert(
+                    $rows,
+                    ['student_id'],
+                    ['is_eligible', 'payment_status', 'updated_at']
+                );
             }
         });
     }
@@ -133,6 +153,7 @@ class EligibilityImport implements ToCollection, WithHeadingRow
             $value = number_format((float) $value, 0, '', '');
         }
         $value = ltrim(trim((string) $value), "'");
+
         return $value === '' ? null : $value;
     }
 }

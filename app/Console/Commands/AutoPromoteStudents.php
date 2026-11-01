@@ -37,6 +37,11 @@ class AutoPromoteStudents extends Command
         'Y4S2' => 'graduated',
     ];
 
+    /**
+     * @var array<string, StudentGeneration|null>
+     */
+    private array $generationCache = [];
+
     public function handle(): int
     {
         $targetSemester = $this->option('semester');
@@ -169,13 +174,19 @@ class AutoPromoteStudents extends Command
         $nextStartYear = $startYear + 1;
         $nextCode = sprintf('%02d%02d', $nextStartYear, $nextStartYear + 1);
 
-        $generation = StudentGeneration::where('code', $nextCode)->first();
+        if (array_key_exists($nextCode, $this->generationCache)) {
+            $generation = $this->generationCache[$nextCode];
+        } else {
+            $generation = StudentGeneration::where('code', $nextCode)->first();
+            $this->generationCache[$nextCode] = $generation;
+        }
 
         if (! $generation && $createIfMissing) {
             $generation = StudentGeneration::create([
                 'code' => $nextCode,
                 'name' => '20'.$nextStartYear.'/'.'20'.($nextStartYear + 1),
             ]);
+            $this->generationCache[$nextCode] = $generation;
             $this->line("  + Generasi {$nextCode} dibuat otomatis.");
         }
 

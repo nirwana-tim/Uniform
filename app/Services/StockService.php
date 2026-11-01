@@ -144,34 +144,54 @@ class StockService
     public function increaseBalance(int $itemId, ?int $variantId, int $quantity, float $unitHpp = 0): void
     {
         DB::transaction(function () use ($itemId, $variantId, $quantity, $unitHpp) {
-            $balance = StockBalance::where('item_id', $itemId)
-                ->where('variant_id', $variantId)
-                ->lockForUpdate()
-                ->first();
-
-            if ($balance) {
-                $oldQty = $balance->quantity;
-                $oldHpp = (float) $balance->last_hpp;
-                $totalQty = $oldQty + $quantity;
-                $avgHpp = $totalQty > 0
-                    ? (($oldQty * $oldHpp) + ($quantity * $unitHpp)) / $totalQty
-                    : $unitHpp;
-
-                $balance->update([
-                    'quantity' => $totalQty,
-                    'last_hpp' => round($avgHpp, 2),
-                ]);
-            } else {
-                StockBalance::create([
-                    'item_id' => $itemId,
-                    'variant_id' => $variantId,
-                    'quantity' => $quantity,
-                    'last_hpp' => round($unitHpp, 2),
-                ]);
-            }
+            $this->increaseBalanceLocked($itemId, $variantId, $quantity, $unitHpp);
         });
 
         $this->forgetDashboardStockCache();
+    }
+
+    private function increaseBalanceLocked(int $itemId, ?int $variantId, int $quantity, float $unitHpp = 0): void
+    {
+        $balance = StockBalance::where('item_id', $itemId)
+            ->where('variant_id', $variantId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($balance) {
+            $oldQty = $balance->quantity;
+            $oldHpp = (float) $balance->last_hpp;
+            $totalQty = $oldQty + $quantity;
+            $avgHpp = $totalQty > 0
+                ? (($oldQty * $oldHpp) + ($quantity * $unitHpp)) / $totalQty
+                : $unitHpp;
+
+            $balance->update([
+                'quantity' => $totalQty,
+                'last_hpp' => round($avgHpp, 2),
+            ]);
+        } else {
+            StockBalance::create([
+                'item_id' => $itemId,
+                'variant_id' => $variantId,
+                'quantity' => $quantity,
+                'last_hpp' => round($unitHpp, 2),
+            ]);
+        }
+    }
+
+    /**
+     * Build a single-statement `CASE` update so a batch of rows can be written in one query.
+     *
+     * @param  array<int, int>  $values  keyed by the row identifier
+     */
+    private function caseWhenSql(string $column, array $values): string
+    {
+        $cases = '';
+        foreach ($values as $key => $value) {
+            $cases .= 'WHEN '.(int) $key.' THEN '.(int) $value.' ';
+        }
+
+        return 'CASE '.$column.' '.$cases.'END';
     }
 
     private function forgetDashboardStockCache(): void
@@ -248,81 +268,208 @@ class StockService
 
     public function deductStockFifo(int $itemId, int $variantId, int $quantity, string $referenceType, int $referenceId, ?string $notes = null): array
     {
-        return DB::transaction(function () use ($itemId, $variantId, $quantity, $referenceType, $referenceId, $notes) {
-            $balance = StockBalance::where('item_id', $itemId)
-                ->where('variant_id', $variantId)
+        $results = $this->deductStockFifos(
+            [['item_id' => $itemId, 'variant_id' => $variantId, 'quantity' => $quantity]],
+            $referenceType,
+            $referenceId,
+            $notes
+        );
+
+        return $results[0] ?? [
+            'blended_hpp' => 0.0,
+            'total_cost' => 0.0,
+            'consumed_batches' => [],
+            'movement_ids' => [],
+        ];
+    }
+
+    /**
+     * Deduct stock for several item/variant pairs inside ONE transaction.
+     *
+     * Balances, batches and movements are read/written in bulk so the query count
+     * stays constant regardless of how many pairs are deducted.
+     *
+     * @param  array<int, array{item_id: int, variant_id: int, quantity: int}>  $requests
+     * @return array<int, array{blended_hpp: float, total_cost: float, consumed_batches: array<int, array{batch_id: int, quantity: int, unit_hpp: mixed}>, movement_ids: array<int, int>}>
+     */
+    public function deductStockFifos(array $requests, string $referenceType, int $referenceId, ?string $notes = null): array
+    {
+        $requests = array_values(array_filter(
+            $requests,
+            fn (array $request) => (int) $request['quantity'] > 0
+        ));
+
+        if ($requests === []) {
+            return [];
+        }
+
+        return DB::transaction(function () use ($requests, $referenceType, $referenceId, $notes) {
+            $itemIds = array_values(array_unique(array_map(fn (array $r) => (int) $r['item_id'], $requests)));
+            $variantIds = array_values(array_unique(array_map(fn (array $r) => (int) $r['variant_id'], $requests)));
+
+            $balances = StockBalance::whereIn('item_id', $itemIds)
+                ->whereIn('variant_id', $variantIds)
                 ->lockForUpdate()
-                ->first();
+                ->get()
+                ->keyBy(fn (StockBalance $balance) => $balance->item_id.'-'.$balance->variant_id);
 
-            if (! $balance || $balance->quantity < $quantity) {
-                throw new \Exception("Stok tidak mencukupi untuk item #{$itemId} varian #{$variantId}.");
-            }
-
-            $batches = StockBatch::where('item_id', $itemId)
-                ->where('variant_id', $variantId)
+            $batches = StockBatch::whereIn('item_id', $itemIds)
+                ->whereIn('variant_id', $variantIds)
                 ->where('quantity_remaining', '>', 0)
                 ->orderBy('received_date')
                 ->orderBy('id')
                 ->lockForUpdate()
-                ->get();
+                ->get()
+                ->groupBy(fn (StockBatch $batch) => $batch->item_id.'-'.$batch->variant_id);
 
-            $totalInBatches = $batches->sum('quantity_remaining');
-            if ($totalInBatches < $quantity) {
-                throw new \Exception(
-                    "Saldo batch tidak mencukupi untuk item #{$itemId} varian #{$variantId} (batch: {$totalInBatches}, diminta: {$quantity}). Lakukan Stock Opname untuk menyelaraskan saldo."
-                );
-            }
+            $batchQuantities = [];
+            $balanceQuantities = [];
+            $movementRows = [];
+            $results = [];
 
-            $remaining = $quantity;
-            $totalCost = 0;
-            $consumedBatches = [];
-            $movementIds = [];
+            foreach ($requests as $request) {
+                $itemId = (int) $request['item_id'];
+                $variantId = (int) $request['variant_id'];
+                $quantity = (int) $request['quantity'];
+                $key = $itemId.'-'.$variantId;
 
-            foreach ($batches as $batch) {
-                if ($remaining <= 0) {
-                    break;
+                $balance = $balances->get($key);
+                $availableBalance = $balance
+                    ? ($balanceQuantities[$balance->id] ?? (int) $balance->quantity)
+                    : 0;
+
+                if (! $balance || $availableBalance < $quantity) {
+                    throw new \Exception("Stok tidak mencukupi untuk item #{$itemId} varian #{$variantId}.");
                 }
 
-                $consume = min($remaining, $batch->quantity_remaining);
+                $pairBatches = $batches->get($key, collect());
+                $availableInBatches = (int) $pairBatches->sum(
+                    fn (StockBatch $batch) => $batchQuantities[$batch->id] ?? (int) $batch->quantity_remaining
+                );
 
-                $batch->decrement('quantity_remaining', $consume);
+                if ($availableInBatches < $quantity) {
+                    throw new \Exception(
+                        "Saldo batch tidak mencukupi untuk item #{$itemId} varian #{$variantId} (batch: {$availableInBatches}, diminta: {$quantity}). Lakukan Stock Opname untuk menyelaraskan saldo."
+                    );
+                }
 
-                $movement = StockMovement::create([
-                    'item_id' => $itemId,
-                    'variant_id' => $variantId,
-                    'type' => 'OUT',
-                    'quantity' => $consume,
-                    'hpp' => $batch->unit_hpp,
-                    'stock_batch_id' => $batch->id,
-                    'reference_type' => $referenceType,
-                    'reference_id' => $referenceId,
-                    'notes' => $notes ?? 'Pengeluaran stok (FIFO)',
-                ]);
+                $remaining = $quantity;
+                $totalCost = 0.0;
+                $consumedBatches = [];
 
-                $totalCost += $consume * $batch->unit_hpp;
-                $consumedBatches[] = [
-                    'batch_id' => $batch->id,
-                    'quantity' => $consume,
-                    'unit_hpp' => $batch->unit_hpp,
+                foreach ($pairBatches as $batch) {
+                    if ($remaining <= 0) {
+                        break;
+                    }
+
+                    $batchAvailable = $batchQuantities[$batch->id] ?? (int) $batch->quantity_remaining;
+                    $consume = min($remaining, $batchAvailable);
+
+                    if ($consume <= 0) {
+                        continue;
+                    }
+
+                    $batchQuantities[$batch->id] = $batchAvailable - $consume;
+
+                    $movementRows[] = [
+                        'item_id' => $itemId,
+                        'variant_id' => $variantId,
+                        'type' => 'OUT',
+                        'quantity' => $consume,
+                        'hpp' => $batch->unit_hpp,
+                        'stock_batch_id' => $batch->id,
+                        'reference_type' => $referenceType,
+                        'reference_id' => $referenceId,
+                        'notes' => $notes ?? 'Pengeluaran stok (FIFO)',
+                    ];
+
+                    $totalCost += $consume * (float) $batch->unit_hpp;
+                    $consumedBatches[] = [
+                        'batch_id' => $batch->id,
+                        'quantity' => $consume,
+                        'unit_hpp' => $batch->unit_hpp,
+                    ];
+
+                    $remaining -= $consume;
+                }
+
+                $balanceQuantities[$balance->id] = $availableBalance - $quantity;
+
+                $results[] = [
+                    'blended_hpp' => round($totalCost / $quantity, 2),
+                    'total_cost' => $totalCost,
+                    'consumed_batches' => $consumedBatches,
+                    'movement_ids' => [],
                 ];
-                $movementIds[] = $movement->id;
-
-                $remaining -= $consume;
             }
 
-            $balance->decrement('quantity', $quantity);
+            $this->insertStockMovements($movementRows);
+            $this->applyQuantityUpdates('stock_batches', 'quantity_remaining', $batchQuantities);
+            $this->applyQuantityUpdates('stock_balances', 'quantity', $balanceQuantities);
 
-            $blendedHpp = $quantity > 0 ? round($totalCost / $quantity, 2) : 0;
+            $movementIds = StockMovement::where('reference_type', $referenceType)
+                ->where('reference_id', $referenceId)
+                ->orderBy('id')
+                ->pluck('id')
+                ->all();
+
+            // The same reference may be reused across calls (e.g. one stock opname);
+            // only the rows this call inserted belong to these results.
+            $insertedCount = count($movementRows);
+            if ($insertedCount > 0 && count($movementIds) > $insertedCount) {
+                $movementIds = array_slice($movementIds, -$insertedCount);
+            }
 
             $this->forgetDashboardStockCache();
 
-            return [
-                'blended_hpp' => $blendedHpp,
-                'total_cost' => $totalCost,
-                'consumed_batches' => $consumedBatches,
-                'movement_ids' => $movementIds,
-            ];
+            $offset = 0;
+            foreach ($results as $position => $result) {
+                $consumed = count($result['consumed_batches']);
+                $results[$position]['movement_ids'] = array_slice($movementIds, $offset, $consumed);
+                $offset += $consumed;
+            }
+
+            return $results;
         }, attempts: 5);
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function insertStockMovements(array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $now = now();
+        foreach ($rows as $index => $row) {
+            $rows[$index]['created_at'] = $now;
+            $rows[$index]['updated_at'] = $now;
+        }
+
+        StockMovement::insert($rows);
+    }
+
+    /**
+     * Apply many absolute quantity updates with a single CASE statement.
+     *
+     * @param  array<int, int>  $quantities  keyed by row id
+     */
+    private function applyQuantityUpdates(string $table, string $column, array $quantities): void
+    {
+        if ($quantities === []) {
+            return;
+        }
+
+        $cases = '';
+        foreach ($quantities as $id => $quantity) {
+            $cases .= ' WHEN '.(int) $id.' THEN '.(int) $quantity;
+        }
+
+        DB::table($table)
+            ->whereIn('id', array_keys($quantities))
+            ->update([$column => DB::raw('CASE id'.$cases.' END')]);
     }
 
     public function getPendingDemandCounts(): Collection
@@ -533,7 +680,19 @@ class StockService
 
     public function nextSequence(string $type, string $period): int
     {
-        return DB::transaction(function () use ($type, $period) {
+        return $this->nextSequenceBlock($type, $period, 1);
+    }
+
+    /**
+     * Reserve a contiguous block of document numbers and return the first one.
+     */
+    public function nextSequenceBlock(string $type, string $period, int $count): int
+    {
+        if ($count < 1) {
+            return $this->nextSequenceBlock($type, $period, 1);
+        }
+
+        return DB::transaction(function () use ($type, $period, $count) {
             DB::table('document_sequences')->insertOrIgnore([
                 'type' => $type,
                 'period' => $period,
@@ -548,60 +707,88 @@ class StockService
                 ->lockForUpdate()
                 ->first();
 
-            $next = (int) $row->value + 1;
+            $first = (int) $row->value + 1;
 
             DB::table('document_sequences')
                 ->where('id', $row->id)
-                ->update(['value' => $next, 'updated_at' => now()]);
+                ->update(['value' => $first + $count - 1, 'updated_at' => now()]);
 
-            return $next;
+            return $first;
         });
     }
 
     public function reverseStockReceive(StockReceive $receive): void
     {
         DB::transaction(function () use ($receive) {
-            $receive = StockReceive::with('items')->whereKey($receive->id)->lockForUpdate()->first();
+            $receive = StockReceive::whereKey($receive->id)->lockForUpdate()->first();
 
             if (! $receive) {
                 throw new \Exception('Penerimaan tidak ditemukan.');
             }
 
-            foreach ($receive->items as $item) {
-                $batchRemaining = StockBatch::where('stock_receive_item_id', $item->id)
-                    ->sum('quantity_remaining');
+            $items = $receive->items()->get();
+            $itemIds = $items->pluck('id')->all();
 
-                if ($batchRemaining < $item->quantity) {
+            $itemMasterIds = $items->pluck('item_id')->unique()->all();
+            $names = null;
+            $itemName = function (StockReceiveItem $item) use (&$names, $itemMasterIds): string {
+                $names ??= Item::whereIn('id', $itemMasterIds)->pluck('name', 'id')->all();
+
+                return $names[$item->item_id] ?? 'Barang';
+            };
+
+            $remainingByItem = StockBatch::whereIn('stock_receive_item_id', $itemIds)
+                ->selectRaw('stock_receive_item_id, SUM(quantity_remaining) as qty')
+                ->groupBy('stock_receive_item_id')
+                ->pluck('qty', 'stock_receive_item_id');
+
+            foreach ($items as $item) {
+                if ((int) ($remainingByItem[$item->id] ?? 0) < (int) $item->quantity) {
                     throw new \Exception(
-                        "Penerimaan {$item->item?->name} sudah ada distribusi/pengeluaran stok. "
+                        "Penerimaan {$itemName($item)} sudah ada distribusi/pengeluaran stok. "
                         .'Gunakan Stock Opname untuk koreksi stok.'
                     );
                 }
+            }
+
+            $balances = StockBalance::whereIn('item_id', $items->pluck('item_id')->unique()->all())
+                ->whereIn('variant_id', $items->pluck('variant_id')->unique()->all())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy(fn (StockBalance $balance) => $balance->item_id.'-'.$balance->variant_id);
+
+            $newQuantities = [];
+            foreach ($items as $item) {
+                $balance = $balances[$item->item_id.'-'.$item->variant_id] ?? null;
+
+                if (! $balance) {
+                    continue;
+                }
+
+                if ($balance->quantity < $item->quantity) {
+                    throw new \Exception(
+                        "Saldo stok tidak mencukupi untuk membatalkan penerimaan {$itemName($item)} "
+                        ."(stok saat ini {$balance->quantity}, dibutuhkan {$item->quantity}). "
+                        .'Gunakan Stock Opname untuk koreksi stok.'
+                    );
+                }
+
+                $newQuantities[$balance->id] = (int) $balance->quantity - (int) $item->quantity;
             }
 
             StockMovement::where('reference_type', StockReceive::class)
                 ->where('reference_id', $receive->id)
                 ->delete();
 
-            foreach ($receive->items as $item) {
-                StockBatch::where('stock_receive_item_id', $item->id)->delete();
+            StockBatch::whereIn('stock_receive_item_id', $itemIds)->delete();
 
-                $balance = StockBalance::where('item_id', $item->item_id)
-                    ->where('variant_id', $item->variant_id)
-                    ->lockForUpdate()
-                    ->first();
-                if ($balance) {
-                    if ($balance->quantity < $item->quantity) {
-                        throw new \Exception(
-                            "Saldo stok tidak mencukupi untuk membatalkan penerimaan {$item->item?->name} "
-                            ."(stok saat ini {$balance->quantity}, dibutuhkan {$item->quantity}). "
-                            .'Gunakan Stock Opname untuk koreksi stok.'
-                        );
-                    }
-
-                    $balance->decrement('quantity', $item->quantity);
-                }
+            if ($newQuantities !== []) {
+                StockBalance::whereIn('id', array_keys($newQuantities))->update([
+                    'quantity' => DB::raw($this->caseWhenSql('id', $newQuantities)),
+                    'updated_at' => now(),
+                ]);
             }
+
             $receive->items()->delete();
             $receive->forceDelete();
 
@@ -612,50 +799,53 @@ class StockService
     public function returnStockToBatch(int $itemId, int $variantId, int $quantity, string $referenceType, int $referenceId, ?string $notes = null): void
     {
         DB::transaction(function () use ($itemId, $variantId, $quantity, $referenceType, $referenceId, $notes) {
-            $outMovements = StockMovement::where('item_id', $itemId)
+            $movements = StockMovement::where('item_id', $itemId)
                 ->where('variant_id', $variantId)
-                ->where('type', 'OUT')
-                ->where('stock_batch_id', '!=', null)
+                ->whereIn('type', ['IN', 'OUT'])
+                ->whereNotNull('stock_batch_id')
                 ->where('reference_type', $referenceType)
                 ->where('reference_id', $referenceId)
                 ->lockForUpdate()
                 ->get();
 
-            $alreadyReturned = StockMovement::where('item_id', $itemId)
-                ->where('variant_id', $variantId)
-                ->where('type', 'IN')
-                ->where('reference_type', $referenceType)
-                ->where('reference_id', $referenceId)
-                ->whereNotNull('stock_batch_id')
+            $outMovements = $movements->where('type', 'OUT');
+            $alreadyReturned = $movements->where('type', 'IN')
                 ->groupBy('stock_batch_id')
-                ->selectRaw('stock_batch_id, SUM(quantity) as total')
-                ->pluck('total', 'stock_batch_id')
-                ->map(fn ($total) => (int) $total)
+                ->map(fn (Collection $rows) => (int) $rows->sum('quantity'))
                 ->all();
+
+            $batches = StockBatch::whereIn('id', $outMovements->pluck('stock_batch_id')->unique()->all())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
             $returnQty = $quantity;
             $totalReturnCost = 0.0;
+            $batchIncrements = [];
+            $movementRows = [];
+            $timestamp = now();
 
             foreach ($outMovements as $movement) {
                 if ($returnQty <= 0) {
                     break;
                 }
+
                 $availableToReturn = max(0, (int) $movement->quantity - ($alreadyReturned[$movement->stock_batch_id] ?? 0));
 
                 if ($availableToReturn <= 0) {
                     continue;
                 }
 
-                $batch = StockBatch::whereKey($movement->stock_batch_id)->lockForUpdate()->first();
+                $batch = $batches[$movement->stock_batch_id] ?? null;
                 if (! $batch) {
                     continue;
                 }
 
                 $returnToBatch = min($returnQty, $availableToReturn);
-                $batch->increment('quantity_remaining', $returnToBatch);
-                $totalReturnCost += $returnToBatch * $batch->unit_hpp;
+                $batchIncrements[$batch->id] = ($batchIncrements[$batch->id] ?? 0) + $returnToBatch;
+                $totalReturnCost += $returnToBatch * (float) $batch->unit_hpp;
 
-                StockMovement::create([
+                $movementRows[] = [
                     'item_id' => $itemId,
                     'variant_id' => $variantId,
                     'type' => 'IN',
@@ -665,7 +855,9 @@ class StockService
                     'reference_type' => $referenceType,
                     'reference_id' => $referenceId,
                     'notes' => $notes ?? 'Retur barang ke batch asal',
-                ]);
+                    'created_at' => $timestamp,
+                    'updated_at' => $timestamp,
+                ];
 
                 $returnQty -= $returnToBatch;
             }
@@ -674,10 +866,28 @@ class StockService
                 throw new \Exception("Tidak dapat mengembalikan {$returnQty} unit: batch asal tidak ditemukan.");
             }
 
+            $batchQuantities = [];
+            foreach ($batchIncrements as $batchId => $increment) {
+                $batchQuantities[$batchId] = (int) $batches[$batchId]->quantity_remaining + $increment;
+            }
+
+            if ($batchQuantities !== []) {
+                StockBatch::whereIn('id', array_keys($batchQuantities))->update([
+                    'quantity_remaining' => DB::raw($this->caseWhenSql('id', $batchQuantities)),
+                    'updated_at' => $timestamp,
+                ]);
+            }
+
+            if ($movementRows !== []) {
+                StockMovement::insert($movementRows);
+            }
+
             $returnedHpp = $quantity > 0 ? round($totalReturnCost / $quantity, 2) : 0;
 
-            $this->increaseBalance($itemId, $variantId, $quantity, $returnedHpp);
+            $this->increaseBalanceLocked($itemId, $variantId, $quantity, $returnedHpp);
         }, attempts: 5);
+
+        $this->forgetDashboardStockCache();
     }
 
     public function getVendorReceivedItems(int $vendorId): Collection

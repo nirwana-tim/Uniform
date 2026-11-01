@@ -26,9 +26,7 @@ class DistributionScheduleService
 
             $schedule = DistributionSchedule::create($data);
 
-            foreach ($itemIds as $itemId) {
-                $schedule->items()->create(['item_id' => $itemId]);
-            }
+            $this->syncItems($schedule, $itemIds);
 
             DB::afterCommit(function () use ($schedule) {
                 app(NotificationService::class)->notifyScheduleCreated($schedule);
@@ -52,12 +50,31 @@ class DistributionScheduleService
 
             $schedule->items()->delete();
 
-            foreach ($itemIds as $itemId) {
-                $schedule->items()->create(['item_id' => $itemId]);
-            }
+            $this->syncItems($schedule, $itemIds);
 
             return $schedule;
         });
+    }
+
+    /**
+     * @param  array<int, int|string>  $itemIds
+     */
+    private function syncItems(DistributionSchedule $schedule, array $itemIds): void
+    {
+        if ($itemIds === []) {
+            return;
+        }
+
+        $now = now();
+
+        $rows = array_map(fn ($itemId): array => [
+            'schedule_id' => $schedule->id,
+            'item_id' => $itemId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ], array_values($itemIds));
+
+        $schedule->items()->insert($rows);
     }
 
     public function destroy(DistributionSchedule $schedule): void
