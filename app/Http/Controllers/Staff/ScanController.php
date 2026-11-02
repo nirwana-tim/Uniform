@@ -10,6 +10,7 @@ use App\Models\ItemCategory;
 use App\Models\ItemPrice;
 use App\Models\StockBalance;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\DistributionService;
 use App\Services\StudentSizeService;
 use Illuminate\Http\JsonResponse;
@@ -102,6 +103,7 @@ class ScanController extends Controller
         }
 
         $scheduleId = $request->query('schedule_id');
+        $scheduleId = is_string($scheduleId) && $scheduleId !== '' ? $scheduleId : null;
 
         return $this->showDistribution($student, $scheduleId);
     }
@@ -160,9 +162,12 @@ class ScanController extends Controller
             'items.min' => 'Pilih minimal satu barang yang akan didistribusikan.',
         ]);
 
+        /** @var Student $student */
         $student = Student::with(['studyProgram', 'generation'])->findOrFail($request->input('student_id'));
+        /** @var DistributionSchedule $schedule */
         $schedule = DistributionSchedule::findOrFail($request->input('schedule_id'));
         $staff = auth()->user();
+        abort_unless($staff instanceof User, 403);
 
         try {
             $transaction = $this->distributionService->processDistribution(
@@ -184,9 +189,13 @@ class ScanController extends Controller
     private function showDistribution(Student $student, ?string $scheduleId = null): View
     {
         if ($scheduleId) {
-            $activeSchedule = DistributionSchedule::find($scheduleId);
+            $activeSchedule = DistributionSchedule::query()->find($scheduleId);
         } else {
             $activeSchedule = DistributionSchedule::activeNow()->first();
+        }
+
+        if (! $activeSchedule instanceof DistributionSchedule) {
+            $activeSchedule = null;
         }
 
         $entitlement = null;

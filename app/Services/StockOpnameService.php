@@ -110,6 +110,12 @@ class StockOpnameService
             $fifoRequests = [];
 
             foreach ($items as $item) {
+                if ($item->item_id === null || $item->variant_id === null) {
+                    $notes[$item->id] = 'Baris opname tanpa item/varian dilewati.';
+
+                    continue;
+                }
+
                 $key = $item->item_id.'-'.$item->variant_id;
                 $balance = $balances->get($key);
                 $available = $runningQuantities[$key] ?? (int) ($balance?->quantity ?? 0);
@@ -129,8 +135,8 @@ class StockOpnameService
                     }
 
                     $surplusRows[] = [
-                        'item_id' => $item->item_id,
-                        'variant_id' => $item->variant_id,
+                        'item_id' => (int) $item->item_id,
+                        'variant_id' => (int) $item->variant_id,
                         'quantity_remaining' => $quantity,
                         'unit_hpp' => $unitHpp,
                         'received_date' => today()->toDateString(),
@@ -139,8 +145,8 @@ class StockOpnameService
                     ];
 
                     $surplusMeta[] = [
-                        'item_id' => $item->item_id,
-                        'variant_id' => $item->variant_id,
+                        'item_id' => (int) $item->item_id,
+                        'variant_id' => (int) $item->variant_id,
                         'quantity' => $quantity,
                         'unit_hpp' => $unitHpp,
                     ];
@@ -155,9 +161,9 @@ class StockOpnameService
                     $runningHpps[$key] = round($newHpp, 2);
 
                     $surplusBalances[$key] = [
-                        'balance' => $balance,
-                        'item_id' => $item->item_id,
-                        'variant_id' => $item->variant_id,
+                        'balance' => $balance instanceof StockBalance ? $balance : null,
+                        'item_id' => (int) $item->item_id,
+                        'variant_id' => (int) $item->variant_id,
                         'quantity' => $newQuantity,
                         'last_hpp' => round($newHpp, 2),
                     ];
@@ -182,8 +188,8 @@ class StockOpnameService
                 }
 
                 $fifoRequests[] = [
-                    'item_id' => $item->item_id,
-                    'variant_id' => $item->variant_id,
+                    'item_id' => (int) $item->item_id,
+                    'variant_id' => (int) $item->variant_id,
                     'quantity' => $quantity,
                 ];
                 $runningQuantities[$key] = $available - $quantity;

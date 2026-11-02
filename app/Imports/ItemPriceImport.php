@@ -92,8 +92,10 @@ class ItemPriceImport implements ToCollection, WithHeadingRow
             return "{$year}-07-01";
         }
 
-        if (strtotime($tahunAkademik)) {
-            return date('Y-m-d', strtotime($tahunAkademik));
+        $timestamp = strtotime($tahunAkademik);
+
+        if ($timestamp !== false) {
+            return date('Y-m-d', $timestamp);
         }
 
         return now()->startOfYear()->toDateString();

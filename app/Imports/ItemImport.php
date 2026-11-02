@@ -372,7 +372,7 @@ class ItemImport implements ToCollection, WithHeadingRow, WithMultipleSheets
      */
     private function resolveCategory(string $name, array &$byLabel, array &$byCode): ?ItemCategory
     {
-        $code = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $name), 0, 3));
+        $code = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $name) ?? '', 0, 3));
 
         if (isset($byLabel[$name])) {
             return $byLabel[$name];
@@ -445,7 +445,7 @@ class ItemImport implements ToCollection, WithHeadingRow, WithMultipleSheets
         if (is_numeric($value)) {
             return (int) $value;
         }
-        $cleaned = preg_replace('/[^0-9]/', '', (string) $value);
+        $cleaned = preg_replace('/[^0-9]/', '', (string) $value) ?? '';
 
         return $cleaned !== '' ? (int) $cleaned : null;
     }

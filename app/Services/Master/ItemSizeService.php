@@ -28,7 +28,7 @@ class ItemSizeService
                 }
             }
             if (! $code) {
-                $code = substr(strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $label)), 0, 3);
+                $code = substr(strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $label) ?? ''), 0, 3);
             }
         }
 

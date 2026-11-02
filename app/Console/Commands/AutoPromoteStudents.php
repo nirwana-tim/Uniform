@@ -45,7 +45,19 @@ class AutoPromoteStudents extends Command
     public function handle(): int
     {
         $targetSemester = $this->option('semester');
-        $targetLevelId = $this->option('level-id');
+        $levelIdOption = $this->option('level-id');
+        $targetLevelId = null;
+
+        if ($levelIdOption !== null && $levelIdOption !== '') {
+            if (! ctype_digit((string) $levelIdOption)) {
+                $this->error('Opsi --level-id harus berupa angka (generation_id).');
+
+                return self::FAILURE;
+            }
+
+            $targetLevelId = (int) $levelIdOption;
+        }
+
         $dryRun = $this->option('dry-run');
 
         if ($this->option('due') && ! $this->isPromotionDue()) {

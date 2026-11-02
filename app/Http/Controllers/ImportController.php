@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -93,9 +94,18 @@ class ImportController extends Controller
         ]);
 
         $file = $request->file('file');
-        $fileName = time().'_'.preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+        abort_if($file === null, 422, 'Berkas import tidak terbaca.');
+
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName()) ?? '';
+        $fileName = time().'_'.$safeName;
         $this->pruneStaleImportFiles();
         $filePath = $file->storeAs('imports', $fileName, 'local');
+
+        if ($filePath === false) {
+            throw ValidationException::withMessages([
+                'file' => 'Gagal menyimpan berkas import ke storage.',
+            ]);
+        }
 
         $data = Excel::toCollection(
             null,

@@ -48,8 +48,14 @@ class ImportService
                 'success_rows' => $successRows,
             ]);
 
-            return $batch->fresh();
+            $batch->refresh();
+
+            return $batch;
         } catch (ValidationException $e) {
+            if (! $batch instanceof ImportBatch) {
+                throw $e;
+            }
+
             $failures = $e->failures();
             $errorLog = collect($failures)->map(fn ($f) => [
                 'row' => $f->row(),
@@ -69,7 +75,9 @@ class ImportService
 
             Log::error("Import {$type} failed", ['batch_id' => $batch->id, 'errors' => $errorLog]);
 
-            return $batch->fresh();
+            $batch->refresh();
+
+            return $batch;
         } catch (\Exception $e) {
             if ($batch) {
                 $batch->update([

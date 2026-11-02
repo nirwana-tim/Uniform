@@ -49,3 +49,6 @@ ward-report.sarif
 .mcp.json
 /boost.json
 AGENTS.md.bak
+
+# Sokudo workspace internals
+/.sokudo/

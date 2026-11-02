@@ -516,7 +516,13 @@ class StudentImport implements ToCollection, WithMultipleSheets
             $this->generations[$generation->code] = $generation;
         }
 
-        return $this->generations->first();
+        $generation = $this->generations->first();
+
+        if (! $generation instanceof StudentGeneration) {
+            throw new \RuntimeException('Gagal menyiapkan data generasi untuk import mahasiswa.');
+        }
+
+        return $generation;
     }
 
     private function normalizeGender(?string $gender): ?string

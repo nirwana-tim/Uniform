@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Finance;
 use App\Http\Controllers\Controller;
 use App\Imports\StockOpnameImport;
 use App\Models\StockOpname;
+use App\Models\User;
 use App\Services\StockOpnameService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -78,6 +79,8 @@ class StockOpnameController extends Controller
         ]);
 
         $file = $request->file('opname_file');
+        abort_if($file === null, 422, 'Berkas opname tidak terbaca.');
+
         $import = new StockOpnameImport($stockOpname->id);
 
         DB::transaction(function () use ($stockOpname, $import, $file) {
@@ -94,7 +97,10 @@ class StockOpnameController extends Controller
 
     public function approve(Request $request, StockOpname $stockOpname): RedirectResponse
     {
-        $this->service->createAdjustments($stockOpname, $request->user());
+        $approver = $request->user();
+        abort_unless($approver instanceof User, 403);
+
+        $this->service->createAdjustments($stockOpname, $approver);
 
         return redirect()->route('inventory.stock-opname.show', $stockOpname)
             ->with('success', 'Stock opname berhasil disetujui dan adjustment telah dibuat.');

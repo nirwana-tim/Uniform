@@ -323,7 +323,7 @@ class StudentSizeService
     /**
      * Save student sizes (baju + sepatu) for a given event.
      *
-     * @param  array{baju: string, sepatu: string}  $sizes
+     * @param  array{baju?: ?string, sepatu?: ?string}  $sizes
      */
     public function saveSizes(Student $student, array $sizes, ?int $eventId = null): void
     {

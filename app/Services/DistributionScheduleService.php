@@ -91,10 +91,10 @@ class DistributionScheduleService
             $items = collect();
         } elseif ($studyProgramId === -1) {
             $items = Item::when($search, function ($q, $search) {
-                $search = str_replace(['%', '_'], ['\%', '\_'], $search);
-                $q->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('code', 'like', "%{$search}%");
+                $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $search);
+                $q->where(function ($q) use ($escaped) {
+                    $q->where('name', 'like', "%{$escaped}%")
+                        ->orWhere('code', 'like', "%{$escaped}%");
                 });
             })->orderBy('name')->get();
         } else {
@@ -136,10 +136,10 @@ class DistributionScheduleService
             $items = $allowedIds->isNotEmpty()
                 ? Item::whereIn('id', $allowedIds)
                     ->when($search, function ($q, $search) {
-                        $search = str_replace(['%', '_'], ['\%', '\_'], $search);
-                        $q->where(function ($q) use ($search) {
-                            $q->where('name', 'like', "%{$search}%")
-                                ->orWhere('code', 'like', "%{$search}%");
+                        $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $search);
+                        $q->where(function ($q) use ($escaped) {
+                            $q->where('name', 'like', "%{$escaped}%")
+                                ->orWhere('code', 'like', "%{$escaped}%");
                         });
                     })
                     ->orderBy('name')->get()
@@ -153,10 +153,10 @@ class DistributionScheduleService
     {
         return DistributionSchedule::with('faculty', 'studyProgram', 'studentLevel')
             ->when($search, function ($query, $search) {
-                $search = str_replace(['%', '_'], ['\%', '\_'], $search);
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                        ->orWhere('location', 'like', "%{$search}%");
+                $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $search);
+                $query->where(function ($q) use ($escaped) {
+                    $q->where('name', 'like', "%{$escaped}%")
+                        ->orWhere('location', 'like', "%{$escaped}%");
                 });
             })
             ->when($period, fn ($query, $p) => $query->where('period', $p))

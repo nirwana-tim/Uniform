@@ -442,14 +442,16 @@ class DistributionService
             $loadedTransaction = null;
 
             DB::afterCommit(function () use (&$loadedTransaction) {
-                if (! $loadedTransaction) {
+                $transaction = $loadedTransaction;
+
+                if (! $transaction instanceof DistributionTransaction) {
                     return;
                 }
 
-                app(NotificationService::class)->sendDistributionConfirmation($loadedTransaction);
+                app(NotificationService::class)->sendDistributionConfirmation($transaction);
 
-                if ($loadedTransaction->status === 'partial') {
-                    app(NotificationService::class)->sendShortageAlert($loadedTransaction);
+                if ($transaction->status === 'partial') {
+                    app(NotificationService::class)->sendShortageAlert($transaction);
                 }
             });
 

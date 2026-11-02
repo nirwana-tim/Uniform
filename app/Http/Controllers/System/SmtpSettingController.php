@@ -197,7 +197,10 @@ class SmtpSettingController extends Controller
         }
 
         // Save
-        $s = SmtpSetting::write($pending, Auth::id());
+        $userId = Auth::id();
+        abort_unless($userId !== null, 403);
+
+        $s = SmtpSetting::write($pending, (int) $userId);
 
         $s->refresh();
         MailSettingsService::apply($s->toArray());

@@ -72,7 +72,9 @@ class EntitlementService
                 }
             }
 
-            return $entitlement->fresh(['items.item']);
+            $fresh = $entitlement->fresh(['items.item']);
+
+            return $fresh ?? $entitlement;
         });
     }
 
@@ -98,7 +100,9 @@ class EntitlementService
                 }
             }
 
-            return $entitlement->fresh(['items.item']);
+            $fresh = $entitlement->fresh(['items.item']);
+
+            return $fresh ?? $entitlement;
         });
     }
 
