@@ -1,14 +1,13 @@
+@php
+    /** @var string $defaultStart */
+    /** @var string $defaultEnd */
+    /** @var \Illuminate\Support\Collection<int, \App\Models\ItemCategory> $categories */
+@endphp
 <x-app-layout>
-    <x-page-header title="Sales & Stock Analytics" subtitle="Dashboard analitik penjualan dan ketersediaan stok barang">
-        <x-slot name="breadcrumb">
-            <a href="{{ route('report.index') }}" class="text-gray-500 hover:text-gray-700 transition-colors">Reports</a>
-            <span class="text-gray-300 mx-2">/</span>
-            <span class="text-gray-800 font-medium">Sales Dashboard</span>
-        </x-slot>
-    </x-page-header>
+    <x-page-header title="Dashboard" subtitle="Dashboard analitik penjualan dan ketersediaan stok barang" />
 
     <script>
-        window.DASHBOARD_URL = @json(route('report.sales-dashboard'));
+        window.DASHBOARD_URL = @json(route('dashboard'));
     </script>
 
     <div x-data="salesDashboard" x-init="startDate = '{{ $defaultStart }}'; endDate = '{{ $defaultEnd }}';" class="space-y-6">

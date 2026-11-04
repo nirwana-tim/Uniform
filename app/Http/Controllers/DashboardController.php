@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\Role;
 use App\Models\DistributionSchedule;
 use App\Models\DistributionTransaction;
+use App\Models\Item;
 use App\Models\SizeEventSubmission;
 use App\Models\Student;
 use App\Services\ReportService;
@@ -21,9 +22,28 @@ class DashboardController extends Controller
         $user = Auth::user();
 
         if ($user->hasRole(Role::SuperAdmin->value) || $user->hasRole(Role::Admin->value)) {
-            $data = app(ReportService::class)->getSalesDashboardViewData();
+            if ($request->has('get_items') && $request->has('category_id')) {
+                $items = Item::where('category_id', $request->input('category_id'))
+                    ->orderBy('name')
+                    ->get(['id', 'name']);
 
-            return view('report.sales-dashboard', $data);
+                return response()->json($items);
+            }
+
+            if ($request->wantsJson() || $request->has('ajax')) {
+                $processed = app(ReportService::class)->getDashboardAnalyticsData(
+                    $request->input('start_date'),
+                    $request->input('end_date'),
+                    $request->input('category_id') ? (int) $request->input('category_id') : null,
+                    $request->input('item_id') ? (int) $request->input('item_id') : null
+                );
+
+                return response()->json($processed);
+            }
+
+            $data = app(ReportService::class)->getDashboardViewData();
+
+            return view('dashboards.admin', $data);
         }
 
         if ($user->hasRole(Role::Staff->value)) {

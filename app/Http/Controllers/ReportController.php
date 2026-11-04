@@ -114,6 +114,7 @@ class ReportController extends Controller
             'stock_opname_id' => ['required', 'integer', 'exists:stock_opnames,id'],
         ]);
 
+        /** @var StockOpname $stockOpname */
         $stockOpname = StockOpname::findOrFail($request->input('stock_opname_id'));
         $filename = 'Laporan_Stok_Opname_'.$stockOpname->reference_number.'.xlsx';
 
@@ -138,32 +139,6 @@ class ReportController extends Controller
             ),
             $filename
         );
-    }
-
-    public function salesDashboard(Request $request): View|JsonResponse
-    {
-        if ($request->has('get_items') && $request->has('category_id')) {
-            $items = Item::where('category_id', $request->input('category_id'))
-                ->orderBy('name')
-                ->get(['id', 'name']);
-
-            return response()->json($items);
-        }
-
-        if ($request->wantsJson() || $request->has('ajax')) {
-            $processed = app(ReportService::class)->getSalesDashboardProcessedData(
-                $request->input('start_date'),
-                $request->input('end_date'),
-                $request->input('category_id') ? (int) $request->input('category_id') : null,
-                $request->input('item_id') ? (int) $request->input('item_id') : null
-            );
-
-            return response()->json($processed);
-        }
-
-        $data = app(ReportService::class)->getSalesDashboardViewData();
-
-        return view('report.sales-dashboard', $data);
     }
 
     public function distributionRecap(Request $request): View|JsonResponse

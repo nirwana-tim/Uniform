@@ -338,7 +338,7 @@ class ReportService
         return $query->get();
     }
 
-    public function getSalesDashboardViewData(): array
+    public function getDashboardViewData(): array
     {
         $minDate = DB::table('distribution_transactions')->whereNotNull('pickup_time')->min('pickup_time');
         $maxDate = DB::table('distribution_transactions')->whereNotNull('pickup_time')->max('pickup_time');
@@ -352,7 +352,7 @@ class ReportService
         return compact('defaultStart', 'defaultEnd', 'categories');
     }
 
-    public function getSalesDashboardProcessedData(?string $startDate = null, ?string $endDate = null, ?int $categoryId = null, ?int $itemId = null): array
+    public function getDashboardAnalyticsData(?string $startDate = null, ?string $endDate = null, ?int $categoryId = null, ?int $itemId = null): array
     {
         $start = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
         $end = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
