@@ -292,8 +292,14 @@ class StockService
      * @param  array<int, array{item_id: int, variant_id: int, quantity: int}>  $requests
      * @return array<int, array{blended_hpp: float, total_cost: float, consumed_batches: array<int, array{batch_id: int, quantity: int, unit_hpp: mixed}>, movement_ids: array<int, int>}>
      */
-    public function deductStockFifos(array $requests, string $referenceType, int $referenceId, ?string $notes = null): array
-    {
+    public function deductStockFifos(
+        array $requests,
+        string $referenceType,
+        int $referenceId,
+        ?string $notes = null,
+        ?Collection $preloadedBalances = null,
+        bool $loadMovementIds = true
+    ): array {
         $requests = array_values(array_filter(
             $requests,
             fn (array $request) => (int) $request['quantity'] > 0
@@ -303,11 +309,11 @@ class StockService
             return [];
         }
 
-        return DB::transaction(function () use ($requests, $referenceType, $referenceId, $notes) {
+        return DB::transaction(function () use ($requests, $referenceType, $referenceId, $notes, $preloadedBalances, $loadMovementIds) {
             $itemIds = array_values(array_unique(array_map(fn (array $r) => (int) $r['item_id'], $requests)));
             $variantIds = array_values(array_unique(array_map(fn (array $r) => (int) $r['variant_id'], $requests)));
 
-            $balances = StockBalance::whereIn('item_id', $itemIds)
+            $balances = $preloadedBalances ?? StockBalance::whereIn('item_id', $itemIds)
                 ->whereIn('variant_id', $variantIds)
                 ->lockForUpdate()
                 ->get()
@@ -407,17 +413,21 @@ class StockService
             $this->applyQuantityUpdates('stock_batches', 'quantity_remaining', $batchQuantities);
             $this->applyQuantityUpdates('stock_balances', 'quantity', $balanceQuantities);
 
-            $movementIds = StockMovement::where('reference_type', $referenceType)
-                ->where('reference_id', $referenceId)
-                ->orderBy('id')
-                ->pluck('id')
-                ->all();
+            $movementIds = [];
 
-            // The same reference may be reused across calls (e.g. one stock opname);
-            // only the rows this call inserted belong to these results.
-            $insertedCount = count($movementRows);
-            if ($insertedCount > 0 && count($movementIds) > $insertedCount) {
-                $movementIds = array_slice($movementIds, -$insertedCount);
+            if ($loadMovementIds) {
+                $movementIds = StockMovement::where('reference_type', $referenceType)
+                    ->where('reference_id', $referenceId)
+                    ->orderBy('id')
+                    ->pluck('id')
+                    ->all();
+
+                // The same reference may be reused across calls (e.g. one stock opname);
+                // only the rows this call inserted belong to these results.
+                $insertedCount = count($movementRows);
+                if ($insertedCount > 0 && count($movementIds) > $insertedCount) {
+                    $movementIds = array_slice($movementIds, -$insertedCount);
+                }
             }
 
             $this->forgetDashboardStockCache();
@@ -425,7 +435,9 @@ class StockService
             $offset = 0;
             foreach ($results as $position => $result) {
                 $consumed = count($result['consumed_batches']);
-                $results[$position]['movement_ids'] = array_slice($movementIds, $offset, $consumed);
+                $results[$position]['movement_ids'] = $loadMovementIds
+                    ? array_slice($movementIds, $offset, $consumed)
+                    : [];
                 $offset += $consumed;
             }
 

@@ -128,6 +128,10 @@ class NotificationService
 
     public function sendDistributionConfirmation(DistributionTransaction $transaction): void
     {
+        if (! SmtpSetting::isActiveConfigured()) {
+            return;
+        }
+
         $student = $transaction->student;
 
         if (! $student) {

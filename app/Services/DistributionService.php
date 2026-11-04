@@ -49,7 +49,7 @@ class DistributionService
 
     public function getEntitlementForStudent(Student $student, ?DistributionSchedule $schedule = null): ?Entitlement
     {
-        return $this->entitlementService->getEntitlement($student, $schedule);
+        return $this->entitlementService->getEntitlement($student, $schedule, eagerLoadItem: false);
     }
 
     /**
@@ -120,18 +120,31 @@ class DistributionService
                 );
             }
 
-            $scheduleItemIds = $schedule->items()->pluck('item_id')->all();
-            $scheduleItemsById = Item::with(['variants', 'category'])
-                ->whereIn('id', $scheduleItemIds)
+            $scheduleRows = DB::table('dist_schedule_items')
+                ->leftJoin('items', 'dist_schedule_items.item_id', '=', 'items.id')
+                ->where('dist_schedule_items.schedule_id', $schedule->id)
+                ->get(['dist_schedule_items.item_id', 'items.base_code']);
+
+            $scheduleItemIds = $scheduleRows->pluck('item_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+            $scheduleBaseCodes = $scheduleRows->pluck('base_code')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $scheduleAllowedItems = Item::with('variants')
+                ->where(function ($query) use ($scheduleItemIds, $scheduleBaseCodes) {
+                    $query->whereIn('id', $scheduleItemIds);
+
+                    if ($scheduleBaseCodes !== []) {
+                        $query->orWhereIn('base_code', $scheduleBaseCodes);
+                    }
+                })
                 ->get()
                 ->keyBy('id');
-            $scheduleBaseCodes = $scheduleItemsById->pluck('base_code')->filter()->unique()->values()->all();
-            $scheduleAllowedItems = empty($scheduleBaseCodes)
-                ? $scheduleItemsById
-                : Item::with(['variants', 'category'])
-                    ->whereIn('base_code', $scheduleBaseCodes)
-                    ->get()
-                    ->keyBy('id');
             $submittedItemIds = array_values(array_unique(array_filter(array_map(
                 fn ($row) => (int) ($row['item_id'] ?? 0),
                 $items
@@ -144,7 +157,12 @@ class DistributionService
             $entitlement = $this->getEntitlementForStudent($student, $schedule);
             $entitlementMap = $entitlement ? $entitlement->items->keyBy('item_id') : collect();
             $entitlementByBaseCode = $entitlement
-                ? $entitlement->items->mapWithKeys(fn ($ei) => $ei->item?->base_code ? [$ei->item->base_code => $ei] : [])->all()
+                ? $entitlement->items->mapWithKeys(function ($entitlementItem) use ($scheduleAllowedItems) {
+                    $baseCode = $scheduleAllowedItems->get((int) $entitlementItem->item_id)?->base_code
+                        ?? $entitlementItem->item?->base_code;
+
+                    return $baseCode ? [$baseCode => $entitlementItem] : [];
+                })->all()
                 : [];
 
             $context = $this->preloadDistributionContext(
@@ -155,25 +173,8 @@ class DistributionService
                 $entitlement
             );
 
-            $distributedByItem = DistributionItem::query()
-                ->join('distribution_transactions', 'distribution_items.transaction_id', '=', 'distribution_transactions.id')
-                ->where('distribution_transactions.student_id', $student->id)
-                ->where('distribution_transactions.status', '!=', 'cancelled')
-                ->groupBy('distribution_items.item_id')
-                ->selectRaw('distribution_items.item_id, SUM(distribution_items.quantity) as total')
-                ->pluck('total', 'item_id')
-                ->map(fn ($v) => (int) $v);
-
-            $distributedByBaseCode = DistributionItem::query()
-                ->join('distribution_transactions', 'distribution_items.transaction_id', '=', 'distribution_transactions.id')
-                ->join('items', 'distribution_items.item_id', '=', 'items.id')
-                ->where('distribution_transactions.student_id', $student->id)
-                ->where('distribution_transactions.status', '!=', 'cancelled')
-                ->whereNotNull('items.base_code')
-                ->groupBy('items.base_code')
-                ->selectRaw('items.base_code, SUM(distribution_items.quantity) as total')
-                ->pluck('total', 'base_code')
-                ->map(fn ($v) => (int) $v);
+            $distributedByItem = $context['distributedByItem'];
+            $distributedByBaseCode = $context['distributedByBaseCode'];
 
             $hasPendingEntitlement = false;
             if ($entitlement && $entitlement->items->isNotEmpty()) {
@@ -189,11 +190,7 @@ class DistributionService
                 }
             }
 
-            $existingTransactions = DistributionTransaction::where('student_id', $student->id)
-                ->where('schedule_id', $schedule->id)
-                ->where('status', '!=', 'cancelled')
-                ->lockForUpdate()
-                ->exists();
+            $existingTransactions = $context['existingTransactions'];
 
             if ($existingTransactions && ! $hasPendingEntitlement) {
                 throw new \Exception('Mahasiswa ini sudah melakukan pengambilan pada jadwal "'.$schedule->name.'". Tidak boleh mengambil ulang.');
@@ -324,7 +321,9 @@ class DistributionService
                     array_values($fifoRequests),
                     DistributionTransaction::class,
                     $transaction->id,
-                    "Distribusi ke {$student->nim}"
+                    "Distribusi ke {$student->nim}",
+                    $context['balances'],
+                    false
                 );
 
                 foreach (array_keys($fifoRequests) as $position => $index) {
@@ -347,34 +346,48 @@ class DistributionService
                 }
             }
 
-            $studentSizesByBaseCode = [];
-            $sizeProfile = $student->activeSizeProfile;
-            if ($sizeProfile && $entitlement) {
-                $categories = [];
+            $pendingEntitlementItems = collect();
+            if ($entitlement) {
+                $submittedItemIds = array_column($items, 'item_id');
 
-                foreach ($context['submitted'] as $contextItem) {
-                    if ($contextItem->category) {
-                        $categories[$contextItem->category_id] = $contextItem->category->code;
-                    }
-                }
+                $pendingEntitlementItems = $entitlement->items->reject(
+                    function ($entitlementItem) use ($checkedBaseCodes, $submittedItemIds, $distributedByBaseCode, $distributedByItem, $distributedInRequest) {
+                        $entBaseCode = $entitlementItem->item?->base_code;
 
-                foreach ($context['byBaseCode'] as $contextGroup) {
-                    foreach ($contextGroup as $contextItem) {
-                        if ($contextItem->category) {
-                            $categories[$contextItem->category_id] = $contextItem->category->code;
+                        if ($entBaseCode && in_array($entBaseCode, $checkedBaseCodes)) {
+                            return true;
                         }
+
+                        if (in_array($entitlementItem->item_id, $submittedItemIds)) {
+                            return true;
+                        }
+
+                        $productKey = $entBaseCode ?? (string) $entitlementItem->item_id;
+                        $alreadyDistributedTotal = (int) ($entBaseCode
+                                ? ($distributedByBaseCode[$entBaseCode] ?? 0)
+                                : ($distributedByItem[$entitlementItem->item_id] ?? 0))
+                            + (int) ($distributedInRequest[$productKey] ?? 0);
+
+                        return $alreadyDistributedTotal >= (int) $entitlementItem->quantity;
                     }
-                }
+                )->values();
+            }
 
-                $missingCategoryIds = $entitlement->items
-                    ->pluck('item.category_id')
-                    ->filter()
-                    ->unique()
-                    ->reject(fn ($id) => array_key_exists($id, $categories))
-                    ->values();
+            $studentSizesByBaseCode = [];
+            $sizeProfile = $pendingEntitlementItems->isEmpty() ? null : $student->activeSizeProfile;
+            if ($sizeProfile && $entitlement) {
+                $contextItems = $context['submitted']->merge($context['byBaseCode']->flatten());
+                $entitlementItems = $entitlement->items->map(fn ($entitlementItem) => $entitlementItem->item)->filter();
+                $allItems = $contextItems->merge($entitlementItems)->unique('id');
 
-                if ($missingCategoryIds->isNotEmpty()) {
-                    $categories += ItemCategory::whereIn('id', $missingCategoryIds)->pluck('code', 'id')->all();
+                $categoryIds = $allItems->pluck('category_id')->filter()->unique()->values()->all();
+                $categoryModels = $categoryIds === [] ? collect() : ItemCategory::whereIn('id', $categoryIds)->get()->keyBy('id');
+                $categories = $categoryModels->map(fn (ItemCategory $category) => $category->code)->all();
+
+                foreach ($allItems as $contextItem) {
+                    if ($contextItem->category_id && isset($categoryModels[$contextItem->category_id])) {
+                        $contextItem->setRelation('category', $categoryModels[$contextItem->category_id]);
+                    }
                 }
 
                 foreach ($entitlement->items as $entitlementItem) {
@@ -400,31 +413,13 @@ class DistributionService
                     }
                 }
             }
-            if ($entitlement) {
-                foreach ($entitlement->items as $entitlementItem) {
-                    $entBaseCode = $entitlementItem->item?->base_code;
-                    if ($entBaseCode && in_array($entBaseCode, $checkedBaseCodes)) {
-                        continue;
-                    }
-                    if (in_array($entitlementItem->item_id, array_column($items, 'item_id'))) {
-                        continue;
-                    }
+            foreach ($pendingEntitlementItems as $entitlementItem) {
+                $entBaseCode = $entitlementItem->item?->base_code;
 
-                    $productKey = $entBaseCode ?? (string) $entitlementItem->item_id;
-                    $alreadyDistributedTotal = (int) ($entBaseCode
-                            ? ($distributedByBaseCode[$entBaseCode] ?? 0)
-                            : ($distributedByItem[$entitlementItem->item_id] ?? 0))
-                        + (int) ($distributedInRequest[$productKey] ?? 0);
-
-                    if ($alreadyDistributedTotal >= (int) $entitlementItem->quantity) {
-                        continue;
-                    }
-
-                    $allFullyStocked = false;
-                    $expectedSize = $studentSizesByBaseCode[$entitlementItem->item_id]
-                        ?? $studentSizesByBaseCode[$entBaseCode ?? ''] ?? '-';
-                    $autoNotes[] = ($entitlementItem->item?->name ?? 'Barang')." (Ukuran {$expectedSize}) ditunda/belum diambil";
-                }
+                $allFullyStocked = false;
+                $expectedSize = $studentSizesByBaseCode[$entitlementItem->item_id]
+                    ?? $studentSizesByBaseCode[$entBaseCode ?? ''] ?? '-';
+                $autoNotes[] = ($entitlementItem->item?->name ?? 'Barang')." (Ukuran {$expectedSize}) ditunda/belum diambil";
             }
 
             if (! $allFullyStocked) {
@@ -486,7 +481,10 @@ class DistributionService
      *     byBaseCode: Collection<string, Collection<int, Item>>,
      *     balances: Collection<string, StockBalance>,
      *     prices: Collection<int, float>,
-     *     deferredPrices: Collection<int, float>
+     *     deferredPrices: Collection<int, float>,
+     *     distributedByItem: Collection<int, int>,
+     *     distributedByBaseCode: Collection<string, int>,
+     *     existingTransactions: bool
      * }
      */
     private function preloadDistributionContext(
@@ -533,17 +531,59 @@ class DistributionService
             ->values()
             ->all();
 
+        // One pass over this student's existing distribution rows powers four
+        // lookups: prior quantity per item/base code, deferred prices, and
+        // whether a non-cancelled transaction already exists for this schedule.
+        $historyRows = DB::table('distribution_transactions as dt')
+            ->leftJoin('distribution_items as di', 'di.transaction_id', '=', 'dt.id')
+            ->leftJoin('items', 'di.item_id', '=', 'items.id')
+            ->where('dt.student_id', $student->id)
+            ->where('dt.status', '!=', 'cancelled')
+            ->whereNull('dt.deleted_at')
+            ->get([
+                'dt.schedule_id',
+                'dt.status',
+                'di.id as distribution_item_id',
+                'di.item_id',
+                'di.quantity',
+                'di.selling_price_at_distribution',
+                'items.base_code',
+            ]);
+
+        $existingTransactions = $historyRows->contains(
+            fn ($row) => (int) $row->schedule_id === (int) $schedule->id
+        );
+
+        $distributedByItem = $historyRows->whereNotNull('item_id')
+            ->groupBy('item_id')
+            ->map(fn (Collection $group) => (int) $group->sum('quantity'));
+
+        $distributedByBaseCode = $historyRows->whereNotNull('base_code')
+            ->groupBy('base_code')
+            ->map(fn (Collection $group) => (int) $group->sum('quantity'));
+
+        $deferredPrices = $historyRows->where('status', 'partial')
+            ->whereNotNull('distribution_item_id')
+            ->sortByDesc('distribution_item_id')
+            ->groupBy('item_id')
+            ->map(fn (Collection $group) => (float) $group->first()->selling_price_at_distribution)
+            ->filter(fn (float $price) => $price > 0);
+
         if ($relevantIds === []) {
             return [
                 'submitted' => $submitted,
                 'byBaseCode' => $byBaseCode,
                 'balances' => collect(),
                 'prices' => collect(),
-                'deferredPrices' => collect(),
+                'deferredPrices' => $deferredPrices,
+                'distributedByItem' => $distributedByItem,
+                'distributedByBaseCode' => $distributedByBaseCode,
+                'existingTransactions' => $existingTransactions,
             ];
         }
 
         $balances = StockBalance::whereIn('item_id', $relevantIds)
+            ->lockForUpdate()
             ->get()
             ->keyBy(fn (StockBalance $balance) => $balance->item_id.'-'.$balance->variant_id);
 
@@ -555,23 +595,15 @@ class DistributionService
             ->groupBy('item_id')
             ->map(fn ($group) => (float) $group->first()->selling_price);
 
-        $deferredPrices = DistributionItem::query()
-            ->join('distribution_transactions', 'distribution_items.transaction_id', '=', 'distribution_transactions.id')
-            ->whereIn('distribution_items.item_id', $relevantIds)
-            ->where('distribution_transactions.student_id', $student->id)
-            ->where('distribution_transactions.status', 'partial')
-            ->orderByDesc('distribution_items.id')
-            ->get(['distribution_items.item_id', 'distribution_items.selling_price_at_distribution'])
-            ->groupBy('item_id')
-            ->map(fn ($group) => (float) $group->first()->selling_price_at_distribution)
-            ->filter(fn (float $price) => $price > 0);
-
         return [
             'submitted' => $submitted,
             'byBaseCode' => $byBaseCode,
             'balances' => $balances,
             'prices' => $prices,
             'deferredPrices' => $deferredPrices,
+            'distributedByItem' => $distributedByItem,
+            'distributedByBaseCode' => $distributedByBaseCode,
+            'existingTransactions' => $existingTransactions,
         ];
     }
 
@@ -605,7 +637,7 @@ class DistributionService
             ->all();
 
         if ($missingIds !== []) {
-            foreach (Item::with(['variants', 'category'])->whereIn('id', $missingIds)->get() as $item) {
+            foreach (Item::with('variants')->whereIn('id', $missingIds)->get() as $item) {
                 $known[$item->id] = $item;
             }
         }
@@ -613,12 +645,11 @@ class DistributionService
         foreach ($entitlement->items as $entitlementItem) {
             $source = $known[(int) $entitlementItem->item_id] ?? null;
 
-            if (! $source || ! $entitlementItem->item) {
+            if (! $source) {
                 continue;
             }
 
-            $entitlementItem->item->setRelation('variants', $source->variants);
-            $entitlementItem->item->setRelation('category', $source->category);
+            $entitlementItem->setRelation('item', $source);
         }
     }
 

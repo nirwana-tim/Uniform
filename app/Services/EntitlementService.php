@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class EntitlementService
 {
-    public function getEntitlement(Student $student, ?DistributionSchedule $schedule = null): ?Entitlement
+    public function getEntitlement(Student $student, ?DistributionSchedule $schedule = null, bool $eagerLoadItem = true): ?Entitlement
     {
         $targetLevel = $schedule?->student_level ?? $student->student_level;
+        $itemsRelation = $eagerLoadItem ? 'items.item' : 'items';
 
         if ($student->entitlement_code) {
             $entitlement = Entitlement::where('code', $student->entitlement_code)
@@ -21,7 +22,7 @@ class EntitlementService
                     $q->where('student_level', $targetLevel)
                         ->orWhereNull('student_level');
                 })
-                ->with('items.item')
+                ->with($itemsRelation)
                 ->first();
 
             if ($entitlement) {
@@ -39,7 +40,7 @@ class EntitlementService
                 $q->where('student_level', $targetLevel)
                     ->orWhereNull('student_level');
             })
-            ->with('items.item')
+            ->with($itemsRelation)
             ->first();
     }
 
