@@ -145,21 +145,28 @@
       }
     }
     /* Mobile Menu Drawer Animation with CSS Grid */
-    #mobileMenu {
-      display: grid;
-      grid-template-rows: 0fr;
-      transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, border-color 0.25s ease;
-      opacity: 0;
-      border-bottom: 1px solid transparent;
+    @media (max-width: 1023.98px) {
+      #mobileMenu {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease, border-color 0.25s ease;
+        opacity: 0;
+        border-bottom: 1px solid transparent;
+      }
+      #mobileMenu.open {
+        grid-template-rows: 1fr;
+        opacity: 1;
+        border-bottom-color: #E3BCC0;
+      }
+      #mobileMenu > div {
+        overflow: hidden;
+        min-height: 0;
+      }
     }
-    #mobileMenu.open {
-      grid-template-rows: 1fr;
-      opacity: 1;
-      border-bottom-color: #E3BCC0;
-    }
-    #mobileMenu > div {
-      overflow: hidden;
-      min-height: 0;
+    @media (min-width: 1024px) {
+      #mobileMenu {
+        display: none !important;
+      }
     }
 
     /* Accordion transition with CSS Grid for accurate height calculation */
