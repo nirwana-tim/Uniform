@@ -200,9 +200,9 @@
                         </svg>
                         Download Excel
                     </button>
-                    <a href="{{ route('report.gpm-cost') }}" class="px-3 py-2 border border-primary-500 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium inline-flex items-center justify-center transition-colors">
+                    <button type="submit" formaction="{{ route('report.gpm-cost') }}" class="px-3 py-2 border border-primary-500 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium inline-flex items-center justify-center transition-colors">
                         Lihat Web &rarr;
-                    </a>
+                    </button>
                 </div>
             </form>
         </div>

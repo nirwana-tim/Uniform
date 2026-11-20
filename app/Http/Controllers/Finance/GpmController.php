@@ -22,6 +22,7 @@ class GpmController extends Controller
             'period' => ['nullable', 'string', 'max:50'],
             'category' => ['nullable', 'string', 'max:50'],
             'item_id' => ['nullable', 'integer', 'exists:items,id'],
+            'item_code' => ['nullable', 'string', 'exists:items,code'],
             'start_date' => ['nullable', 'date'],
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
@@ -29,6 +30,9 @@ class GpmController extends Controller
         $period = filled($validated['period'] ?? null) ? trim($validated['period']) : null;
         $category = filled($validated['category'] ?? null) ? trim($validated['category']) : null;
         $itemId = ! empty($validated['item_id']) ? (int) $validated['item_id'] : null;
+        if (! $itemId && filled($validated['item_code'] ?? null)) {
+            $itemId = Item::where('code', trim($validated['item_code']))->value('id');
+        }
         $startDate = filled($validated['start_date'] ?? null) ? trim($validated['start_date']) : null;
         $endDate = filled($validated['end_date'] ?? null) ? trim($validated['end_date']) : null;
 
