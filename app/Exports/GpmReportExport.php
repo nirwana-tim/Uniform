@@ -19,6 +19,15 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
 
     private int $row = 0;
 
+    /**
+     * @var array<int, array{ratio: float, revenue: float}>
+     */
+    private array $rowGpmMeta = [];
+
+    private float $grandTotalRevenue = 0.0;
+
+    private float $grandTotalHpp = 0.0;
+
     public function __construct(
         private ?string $period = null,
         private ?string $category = null
@@ -31,9 +40,7 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
 
     public function collection(): Enumerable
     {
-        $service = new GpmService;
-
-        return $service->calculateGpm($this->period, $this->category);
+        return app(GpmService::class)->calculateGpm($this->period, $this->category);
     }
 
     public function headings(): array
@@ -43,36 +50,46 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
             'Kode Barang',
             'Nama Barang',
             'Kategori',
-            'Harga Jual (Rp)',
-            'HPP (Rp)',
+            'Harga Jual Rata-rata (Rp)',
+            'HPP Rata-rata (Rp)',
             'Qty Terjual',
-            'Revenue (Rp)',
-            'Cost (Rp)',
+            'Penjualan Bersih (Rp)',
+            'Inventory Out / HPP (Rp)',
             'Laba Kotor (Rp)',
-            'Margin (%)',
+            'GPM (%)',
         ];
     }
 
     public function map($item): array
     {
         $this->row++;
-        $revenue = $item['total_selling_price'] ?? 0;
-        $cost = $item['total_hpp'] ?? 0;
-        $profit = $revenue - $cost;
-        $margin = $revenue > 0 ? $profit / $revenue : 0;
+        $excelRow = $this->dataStartRow() + $this->row - 1;
+
+        $revenue = round((float) ($item['total_selling_price'] ?? 0), 2);
+        $cost = round((float) ($item['total_hpp'] ?? 0), 2);
+        $gpmRatio = isset($item['gpm_ratio'])
+            ? (float) $item['gpm_ratio']
+            : GpmService::calculateGpmRatio($cost, $revenue);
+
+        $this->rowGpmMeta[$excelRow] = [
+            'ratio' => $gpmRatio,
+            'revenue' => $revenue,
+        ];
+        $this->grandTotalRevenue += $revenue;
+        $this->grandTotalHpp += $cost;
 
         return [
             $this->row,
-            $item['item_code'] ?? '',
-            $item['item_name'],
-            $item['category_name'] ?? '-',
-            $item['selling_price'] ?? 0,
-            $item['hpp'] ?? 0,
-            $item['qty_sold'] ?? 0,
+            (string) ($item['item_code'] ?? ''),
+            (string) ($item['item_name'] ?? '-'),
+            (string) ($item['category_name'] ?? '-'),
+            round((float) ($item['selling_price'] ?? 0), 2),
+            round((float) ($item['hpp'] ?? 0), 2),
+            (int) ($item['qty_sold'] ?? 0),
             $revenue,
             $cost,
-            $profit,
-            $margin,
+            '=H'.$excelRow.'-I'.$excelRow,
+            '=IF(H'.$excelRow.'>0,1-(I'.$excelRow.'/H'.$excelRow.'),0)',
         ];
     }
 
@@ -84,33 +101,27 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
         $lastRow = $dataStart + $this->row - 1;
 
         $this->setTitle($sheet, 'LAPORAN GPM / LABA KOTOR', $colCount);
-        $filterText = $this->period ? 'Periode: '.$this->period : 'Semua Periode';
-        $this->setSubtitle($sheet, $filterText, $colCount);
+
+        $filterParts = [$this->period ? 'Periode: '.$this->period : 'Semua Periode'];
+        if ($this->category) {
+            $filterParts[] = 'Kategori: '.$this->category;
+        }
+        $filterParts[] = 'Rumus: GPM = 100% - (Inventory Out HPP / Penjualan Bersih)';
+        $this->setSubtitle($sheet, implode(' | ', $filterParts), $colCount);
 
         $this->applyHeaderStyle($sheet, $headerRow, $colCount);
-        $this->applyDataStyle($sheet, $dataStart, $lastRow, $colCount);
-
-        for ($i = $dataStart; $i <= $lastRow; $i++) {
-            $margin = $sheet->getCell('K'.$i)->getValue();
-
-            if (is_numeric($margin)) {
-                if ($margin < 0.10) {
-                    $sheet->getStyle('K'.$i)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('FFE0E0');
-                } elseif ($margin < 0.20) {
-                    $sheet->getStyle('K'.$i)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('FFF8E0');
-                } else {
-                    $sheet->getStyle('K'.$i)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('E0FFE0');
-                }
-            }
-        }
 
         if ($lastRow >= $dataStart) {
+            $this->applyDataStyle($sheet, $dataStart, $lastRow, $colCount);
+
+            for ($i = $dataStart; $i <= $lastRow; $i++) {
+                $meta = $this->rowGpmMeta[$i] ?? null;
+
+                if ($meta !== null && $meta['revenue'] > 0) {
+                    $this->applyGpmFill($sheet, 'K'.$i, $meta['ratio']);
+                }
+            }
+
             $totalRow = $lastRow + 1;
             $this->applyTotalStyle($sheet, $totalRow, $colCount);
 
@@ -119,6 +130,12 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
             $sheet->setCellValue('H'.$totalRow, '=SUM(H'.$dataStart.':H'.$lastRow.')');
             $sheet->setCellValue('I'.$totalRow, '=SUM(I'.$dataStart.':I'.$lastRow.')');
             $sheet->setCellValue('J'.$totalRow, '=SUM(J'.$dataStart.':J'.$lastRow.')');
+            $sheet->setCellValue('K'.$totalRow, '=IF(H'.$totalRow.'>0,1-(I'.$totalRow.'/H'.$totalRow.'),0)');
+
+            if ($this->grandTotalRevenue > 0) {
+                $totalGpmRatio = GpmService::calculateGpmRatio($this->grandTotalHpp, $this->grandTotalRevenue);
+                $this->applyGpmFill($sheet, 'K'.$totalRow, $totalGpmRatio);
+            }
 
             $this->setFormatRupiah($sheet, 'E', $dataStart, $totalRow);
             $this->setFormatRupiah($sheet, 'F', $dataStart, $totalRow);
@@ -131,12 +148,25 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
 
         $this->setColumnWidths($sheet, [
             'A' => 5, 'B' => 20, 'C' => 30, 'D' => 14,
-            'E' => 16, 'F' => 16, 'G' => 14, 'H' => 18,
-            'I' => 18, 'J' => 18, 'K' => 14,
+            'E' => 20, 'F' => 18, 'G' => 14, 'H' => 20,
+            'I' => 22, 'J' => 18, 'K' => 14,
         ]);
 
         $sheet->freezePane('A'.($headerRow + 1));
 
         return null;
+    }
+
+    private function applyGpmFill(Worksheet $sheet, string $cell, float $ratio): void
+    {
+        $rgb = match (true) {
+            $ratio < 0.10 => 'FFE0E0',
+            $ratio < 0.20 => 'FFF8E0',
+            default => 'E0FFE0',
+        };
+
+        $sheet->getStyle($cell)->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($rgb);
     }
 }

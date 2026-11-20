@@ -563,6 +563,7 @@ class DistributionService
             ->map(fn (Collection $group) => (int) $group->sum('quantity'));
 
         $deferredPrices = $historyRows->where('status', 'partial')
+            ->where('schedule_id', $schedule->id)
             ->whereNotNull('distribution_item_id')
             ->sortByDesc('distribution_item_id')
             ->groupBy('item_id')
@@ -587,8 +588,10 @@ class DistributionService
             ->get()
             ->keyBy(fn (StockBalance $balance) => $balance->item_id.'-'.$balance->variant_id);
 
+        $effectiveDate = $schedule->date ?? now()->toDateString();
+
         $prices = ItemPrice::whereIn('item_id', $relevantIds)
-            ->where('effective_date', '<=', $schedule->date)
+            ->where('effective_date', '<=', $effectiveDate)
             ->orderByDesc('effective_date')
             ->orderByDesc('id')
             ->get()

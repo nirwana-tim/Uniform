@@ -83,14 +83,16 @@ class ReportController extends Controller
 
     public function gpm(Request $request): BinaryFileResponse
     {
-        $request->validate([
-            'period' => 'nullable|string',
+        $validated = $request->validate([
+            'period' => 'nullable|string|max:50',
+            'category' => 'nullable|string|exists:item_categories,code',
         ]);
 
-        $period = $request->input('period');
-        $filename = 'Laporan_GPM'.($period ? "_{$period}" : '').'.xlsx';
+        $period = filled($validated['period'] ?? null) ? trim($validated['period']) : null;
+        $category = filled($validated['category'] ?? null) ? trim($validated['category']) : null;
+        $filename = 'Laporan_GPM'.($period ? "_{$period}" : '').($category ? "_{$category}" : '').'.xlsx';
 
-        return Excel::download(new GpmReportExport($period), $filename);
+        return Excel::download(new GpmReportExport($period, $category), $filename);
     }
 
     public function stock(Request $request): BinaryFileResponse

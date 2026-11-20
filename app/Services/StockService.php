@@ -38,13 +38,21 @@ class StockService
                     continue;
                 }
 
+                $unitPrice = max(0.0, (float) ($itemData['unit_price'] ?? 0));
+                $rawHpp = isset($itemData['hpp']) && $itemData['hpp'] !== ''
+                    ? (float) $itemData['hpp']
+                    : null;
+                $resolvedHpp = ($rawHpp !== null && $rawHpp > 0)
+                    ? $rawHpp
+                    : ($unitPrice > 0 ? $unitPrice : max(0.0, (float) ($item->hpp ?? 0)));
+
                 $receiveItem = StockReceiveItem::create([
                     'stock_receive_id' => $receive->id,
                     'item_id' => $item->id,
                     'variant_id' => $variant->id,
                     'quantity' => $itemData['quantity'],
-                    'unit_price' => $itemData['unit_price'] ?? 0,
-                    'hpp' => $itemData['hpp'] ?? $itemData['unit_price'] ?? 0,
+                    'unit_price' => $unitPrice,
+                    'hpp' => $resolvedHpp,
                 ]);
 
                 StockMovement::create([

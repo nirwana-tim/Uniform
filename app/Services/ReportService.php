@@ -92,6 +92,8 @@ class ReportService
             ->join('items', 'distribution_items.item_id', '=', 'items.id')
             ->join('distribution_transactions', 'distribution_transactions.id', '=', 'distribution_items.transaction_id')
             ->whereIn('distribution_transactions.status', ['completed', 'partial'])
+            ->whereNull('distribution_transactions.deleted_at')
+            ->where('distribution_items.quantity', '>', 0)
             ->groupBy('distribution_items.item_id');
 
         if ($categoryId) {
@@ -116,6 +118,7 @@ class ReportService
             )
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at')
             ->whereYear('dt.pickup_time', $year)
             ->whereMonth('dt.pickup_time', $month)
             ->groupBy('di.item_id');
@@ -162,6 +165,7 @@ class ReportService
                     ->whereMonth('dt.pickup_time', '=', $month);
             })
             ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at')
             ->groupBy('i.id', 'i.name', 'i.code')
             ->orderBy('i.name')
             ->get();
@@ -178,6 +182,7 @@ class ReportService
                     ->whereMonth('dt.pickup_time', '=', $month);
             })
             ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at')
             ->first();
 
         $stockDetails = DB::table('items as i')
@@ -214,6 +219,7 @@ class ReportService
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at')
             ->where('dt.pickup_time', '>=', $cutoff)
             ->groupBy(DB::raw('EXTRACT(YEAR FROM dt.pickup_time)'), DB::raw('EXTRACT(MONTH FROM dt.pickup_time)'))
             ->orderBy(DB::raw('EXTRACT(YEAR FROM dt.pickup_time)'))
@@ -362,7 +368,8 @@ class ReportService
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->select('i.category_id', DB::raw('SUM(di.quantity) as total_sold'))
-            ->whereIn('dt.status', ['completed', 'partial']);
+            ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at');
 
         if ($start) {
             $soldQuery->where('dt.pickup_time', '>=', $start);
@@ -425,7 +432,8 @@ class ReportService
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->select('i.name', DB::raw('SUM(di.quantity) as total_sold'))
-            ->whereIn('dt.status', ['completed', 'partial']);
+            ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at');
 
         if ($start) {
             $c1Query->where('dt.pickup_time', '>=', $start);
@@ -462,7 +470,8 @@ class ReportService
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->select('i.name', DB::raw('SUM(di.quantity * di.selling_price_at_distribution) as total_revenue'))
-            ->whereIn('dt.status', ['completed', 'partial']);
+            ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at');
 
         if ($start) {
             $c2Query->where('dt.pickup_time', '>=', $start);
@@ -512,7 +521,8 @@ class ReportService
                 DB::raw('SUM(di.quantity) as total_sold'),
                 DB::raw('SUM(di.quantity * di.selling_price_at_distribution) as total_revenue')
             )
-            ->whereIn('dt.status', ['completed', 'partial']);
+            ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at');
 
         if ($start) {
             $c3Query->where('dt.pickup_time', '>=', $start);
@@ -618,7 +628,8 @@ class ReportService
             ->join('distribution_transactions as dt', 'dt.id', '=', 'di.transaction_id')
             ->join('items as i', 'i.id', '=', 'di.item_id')
             ->select('i.name', DB::raw('SUM(di.quantity) as total_sold'))
-            ->whereIn('dt.status', ['completed', 'partial']);
+            ->whereIn('dt.status', ['completed', 'partial'])
+            ->whereNull('dt.deleted_at');
 
         if ($start) {
             $c6Query->where('dt.pickup_time', '>=', $start);

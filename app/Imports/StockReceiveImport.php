@@ -166,6 +166,8 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
             $rules = [
                 'kode_barang' => ['required', 'string', 'max:100'],
                 'quantity' => ['required', 'integer', 'min:1'],
+                'unit_price' => ['nullable', 'numeric', 'min:0'],
+                'hpp' => ['nullable', 'numeric', 'min:0'],
                 'vendor' => ['required', 'string', 'max:255'],
                 'tanggal' => ['required', 'string', 'date_format:Y-m-d'],
             ];
@@ -465,27 +467,33 @@ class StockReceiveImport implements ToCollection, WithHeadingRow, WithMultipleSh
         if ($value === null || $value === '' || $value === '-') {
             return null;
         }
-        if (is_numeric($value)) {
+        if (is_int($value) || is_float($value)) {
             return (float) $value;
         }
 
-        $text = trim((string) $value);
+        $text = trim((string) preg_replace('/^Rp\.?\s*/i', '', trim((string) $value)));
+        $isNegative = str_starts_with($text, '-');
+        $unsigned = trim((string) preg_replace('/^Rp\.?\s*/i', '', ltrim($text, '+-')));
 
-        if (str_contains($text, ',')) {
-            $lastComma = strrpos($text, ',');
-            $lastDot = strrpos($text, '.');
-            if ($lastComma > $lastDot) {
-                $text = str_replace('.', '', $text);
-                $text = str_replace(',', '.', $text);
+        if (str_contains($unsigned, ',')) {
+            $lastComma = strrpos($unsigned, ',');
+            $lastDot = strrpos($unsigned, '.');
+            if ($lastDot === false || $lastComma > $lastDot) {
+                $unsigned = str_replace('.', '', $unsigned);
+                $unsigned = str_replace(',', '.', $unsigned);
             } else {
-                $text = str_replace(',', '', $text);
+                $unsigned = str_replace(',', '', $unsigned);
             }
-        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $text)) {
-            $text = str_replace('.', '', $text);
+        } elseif (preg_match('/^\d{1,3}(\.\d{3})+$/', $unsigned)) {
+            $unsigned = str_replace('.', '', $unsigned);
         }
 
-        $cleaned = preg_replace('/[^0-9.]/', '', $text);
+        $cleaned = preg_replace('/[^0-9.]/', '', $unsigned);
 
-        return $cleaned !== '' ? (float) $cleaned : null;
+        if ($cleaned === null || $cleaned === '') {
+            return null;
+        }
+
+        return $isNegative ? -(float) $cleaned : (float) $cleaned;
     }
 }

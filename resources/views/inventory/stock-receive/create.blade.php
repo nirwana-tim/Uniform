@@ -17,7 +17,7 @@
         searchItemsUrl: '{{ route('inventory.stock-receive.search-items') }}',
         variantUrlBase: '{{ url('inventory/stock-receive/variants-by-base-code') }}',
         variantByItemUrl: '{{ url('inventory/stock-receive/variants-by-item') }}',
-        newItem: { item_id: '', item_label: '', item_label_display: '', variant_id: '', variant_label: '', quantity: 1, unit_price: 0, hpp: 0 },
+        newItem: { item_id: '', item_label: '', item_label_display: '', variant_id: '', variant_label: '', quantity: 1, unit_price: 0, hpp: '' },
         variantOptions: [],
         debounceTimer: null,
         highlightedIdx: -1,
@@ -79,7 +79,7 @@
         },
 
         resetForm() {
-            this.newItem = { item_id: '', item_label: '', item_label_display: '', variant_id: '', variant_label: '', quantity: 1, unit_price: 0, hpp: 0 };
+            this.newItem = { item_id: '', item_label: '', item_label_display: '', variant_id: '', variant_label: '', quantity: 1, unit_price: 0, hpp: '' };
             this.itemSearch = '';
             this.itemSearchResults = [];
             this.itemSearchError = '';
@@ -202,8 +202,8 @@
                                                 <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="item.item_label"></td>
                                                 <td class="px-6 py-4 text-sm text-gray-500" x-text="item.variant_label"></td>
                                                 <td class="px-6 py-4 text-sm text-gray-900 font-semibold" x-text="item.quantity"></td>
-                                                <td class="px-6 py-4 text-sm text-gray-500" x-text="'Rp ' + Number(item.unit_price).toLocaleString('id-ID')"></td>
-                                                <td class="px-6 py-4 text-sm text-gray-500" x-text="'Rp ' + Number(item.hpp).toLocaleString('id-ID')"></td>
+                                                <td class="px-6 py-4 text-sm text-gray-500" x-text="'Rp ' + Number(item.unit_price || 0).toLocaleString('id-ID')"></td>
+                                                <td class="px-6 py-4 text-sm text-gray-500" x-text="item.hpp !== '' && item.hpp !== null && Number(item.hpp) > 0 ? 'Rp ' + Number(item.hpp).toLocaleString('id-ID') : 'Auto'"></td>
                                                 <td class="px-6 py-4 text-sm text-center space-x-2">
                                                     <button type="button" @click="editItem(index)" class="text-primary-600 hover:text-primary-800 font-semibold transition">Edit</button>
                                                     <button type="button" @click="removeItem(index)" class="text-red-600 hover:text-red-800 font-semibold transition">Delete</button>
@@ -313,7 +313,7 @@
                             </div>
                             <div>
                                 <x-input-label :value="__('HPP')" class="mb-1" />
-                                <x-text-input type="number" x-model="newItem.hpp" min="0" class="w-full text-sm" />
+                                <x-text-input type="number" x-model="newItem.hpp" min="0" placeholder="Auto" class="w-full text-sm" />
                             </div>
                         </div>
                     </div>

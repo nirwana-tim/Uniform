@@ -16,16 +16,24 @@ class GpmController extends Controller
 
     public function index(Request $request): View
     {
-        $period = $request->input('period');
-        $periods = DistributionSchedule::whereNotNull('period')->distinct()->orderBy('period', 'desc')->pluck('period', 'period');
+        $validated = $request->validate([
+            'period' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $period = filled($validated['period'] ?? null) ? trim($validated['period']) : null;
+        $periods = DistributionSchedule::whereNotNull('period')
+            ->distinct()
+            ->orderBy('period', 'desc')
+            ->pluck('period', 'period');
 
         $gpmData = $this->service->calculateGpm($period);
-        $gpmByCategory = $this->service->getGpmByCategory($period);
+        $gpmByCategory = $this->service->getGpmByCategory($period, $gpmData);
 
-        $totalQty = $gpmData->sum('qty_sold');
-        $total_hpp = $gpmData->sum('total_hpp');
-        $total_selling = $gpmData->sum('total_selling_price');
-        $total_laba_rugi = $total_selling - $total_hpp;
+        $totalQty = (int) $gpmData->sum('qty_sold');
+        $total_hpp = round((float) $gpmData->sum('total_hpp'), 2);
+        $total_selling = round((float) $gpmData->sum('total_selling_price'), 2);
+        $total_laba_rugi = round($total_selling - $total_hpp, 2);
+        $total_gpm = GpmService::calculateGpmPercentage($total_hpp, $total_selling);
 
         return view('report.gpm-cost', compact(
             'period',
@@ -35,7 +43,8 @@ class GpmController extends Controller
             'totalQty',
             'total_hpp',
             'total_selling',
-            'total_laba_rugi'
+            'total_laba_rugi',
+            'total_gpm'
         ));
     }
 }

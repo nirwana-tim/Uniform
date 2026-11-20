@@ -367,9 +367,11 @@ class ScanController extends Controller
         $itemPrices = [];
         $itemIds = $scheduleItems->pluck('id');
         if ($itemIds->isNotEmpty()) {
+            $effectiveDate = $activeSchedule->date ?? now()->toDateString();
             $allPrices = ItemPrice::whereIn('item_id', $itemIds)
-                ->where('effective_date', '<=', $activeSchedule->date)
+                ->where('effective_date', '<=', $effectiveDate)
                 ->orderBy('effective_date', 'desc')
+                ->orderBy('id', 'desc')
                 ->get()
                 ->groupBy('item_id')
                 ->map(fn ($prices) => $prices->first()->selling_price);
