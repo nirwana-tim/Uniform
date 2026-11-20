@@ -10,28 +10,76 @@
     <div class="flex flex-col gap-6">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <form action="{{ route('report.gpm-cost') }}" method="GET">
-                <div class="flex flex-wrap items-end justify-between gap-4">
-                    <div class="flex flex-wrap items-end gap-4">
-                        <div class="w-72">
-                            <label for="period" class="block text-sm font-medium text-gray-700 mb-1">Filter Period</label>
-                            <select id="period" name="period" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm">
-                                <option value="">All Periods</option>
-                                @foreach($periods as $p)
-                                    <option value="{{ $p }}" {{ $period === $p ? 'selected' : '' }}>{{ $p }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <button type="submit" class="bg-primary-700 text-white hover:bg-primary-800 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center">
-                            Filter
-                        </button>
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                    <div>
+                        <label for="period" class="block text-xs font-medium text-gray-700 mb-1">Periode</label>
+                        <select id="period" name="period" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm">
+                            <option value="">Semua Periode</option>
+                            @foreach($periods as $p)
+                                <option value="{{ $p }}" {{ $period === $p ? 'selected' : '' }}>{{ $p }}</option>
+                            @endforeach
+                        </select>
                     </div>
 
-                    <a href="{{ route('report.gpm', array_filter(['period' => $period])) }}"
-                       class="border border-primary-500 text-primary-700 hover:bg-primary-50 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center gap-2">
+                    <div>
+                        <label for="category" class="block text-xs font-medium text-gray-700 mb-1">Kategori</label>
+                        <select id="category" name="category" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm">
+                            <option value="">Semua Kategori</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->code }}" {{ $category === $cat->code ? 'selected' : '' }}>
+                                    {{ $cat->label }} ({{ $cat->code }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="item_id" class="block text-xs font-medium text-gray-700 mb-1">Barang / Item</label>
+                        <select id="item_id" name="item_id" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm">
+                            <option value="">Semua Barang</option>
+                            @foreach($items as $it)
+                                <option value="{{ $it->id }}" {{ (string) $itemId === (string) $it->id ? 'selected' : '' }}>
+                                    {{ $it->name }} ({{ $it->code }})
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="start_date" class="block text-xs font-medium text-gray-700 mb-1">Tanggal Mulai</label>
+                        <input type="date" id="start_date" name="start_date" value="{{ $startDate }}"
+                               class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm">
+                    </div>
+
+                    <div>
+                        <label for="end_date" class="block text-xs font-medium text-gray-700 mb-1">Tanggal Selesai</label>
+                        <input type="date" id="end_date" name="end_date" value="{{ $endDate }}"
+                               class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm">
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <button type="submit" class="bg-primary-700 text-white hover:bg-primary-800 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center gap-1.5 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                            </svg>
+                            Terapkan Filter
+                        </button>
+
+                        @if($period || $category || $itemId || $startDate || $endDate)
+                            <a href="{{ route('report.gpm-cost') }}" class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                                Reset Filter
+                            </a>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('report.gpm', array_filter(['period' => $period, 'category' => $category, 'item_id' => $itemId, 'start_date' => $startDate, 'end_date' => $endDate])) }}"
+                       class="border border-primary-500 text-primary-700 hover:bg-primary-50 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center gap-2 transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        Export Excel
+                        Download Excel Laporan GPM
                     </a>
                 </div>
             </form>

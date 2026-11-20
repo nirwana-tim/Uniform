@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Models\DistributionSchedule;
+use App\Models\Item;
+use App\Models\ItemCategory;
 use App\Services\GpmService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -18,16 +20,28 @@ class GpmController extends Controller
     {
         $validated = $request->validate([
             'period' => ['nullable', 'string', 'max:50'],
+            'category' => ['nullable', 'string', 'max:50'],
+            'item_id' => ['nullable', 'integer', 'exists:items,id'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
         $period = filled($validated['period'] ?? null) ? trim($validated['period']) : null;
+        $category = filled($validated['category'] ?? null) ? trim($validated['category']) : null;
+        $itemId = ! empty($validated['item_id']) ? (int) $validated['item_id'] : null;
+        $startDate = filled($validated['start_date'] ?? null) ? trim($validated['start_date']) : null;
+        $endDate = filled($validated['end_date'] ?? null) ? trim($validated['end_date']) : null;
+
         $periods = DistributionSchedule::whereNotNull('period')
             ->distinct()
             ->orderBy('period', 'desc')
             ->pluck('period', 'period');
 
-        $gpmData = $this->service->calculateGpm($period);
-        $gpmByCategory = $this->service->getGpmByCategory($period, $gpmData);
+        $items = Item::orderBy('name')->get(['id', 'code', 'name']);
+        $categories = ItemCategory::orderBy('code')->get(['id', 'code', 'label']);
+
+        $gpmData = $this->service->calculateGpm($period, $category, $startDate, $endDate, $itemId);
+        $gpmByCategory = $this->service->getGpmByCategory($period, $gpmData, $category, $startDate, $endDate, $itemId);
 
         $totalQty = (int) $gpmData->sum('qty_sold');
         $total_hpp = round((float) $gpmData->sum('total_hpp'), 2);
@@ -38,6 +52,12 @@ class GpmController extends Controller
         return view('report.gpm-cost', compact(
             'period',
             'periods',
+            'category',
+            'categories',
+            'itemId',
+            'items',
+            'startDate',
+            'endDate',
             'gpmData',
             'gpmByCategory',
             'totalQty',

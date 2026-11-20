@@ -86,13 +86,44 @@ class ReportController extends Controller
         $validated = $request->validate([
             'period' => 'nullable|string|max:50',
             'category' => 'nullable|string|exists:item_categories,code',
+            'item_id' => 'nullable|integer|exists:items,id',
+            'item_code' => 'nullable|string|exists:items,code',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
         ]);
 
         $period = filled($validated['period'] ?? null) ? trim($validated['period']) : null;
         $category = filled($validated['category'] ?? null) ? trim($validated['category']) : null;
-        $filename = 'Laporan_GPM'.($period ? "_{$period}" : '').($category ? "_{$category}" : '').'.xlsx';
+        $itemId = ! empty($validated['item_id']) ? (int) $validated['item_id'] : null;
+        if (! $itemId && filled($validated['item_code'] ?? null)) {
+            $itemId = Item::where('code', trim($validated['item_code']))->value('id');
+        }
+        $startDate = filled($validated['start_date'] ?? null) ? trim($validated['start_date']) : null;
+        $endDate = filled($validated['end_date'] ?? null) ? trim($validated['end_date']) : null;
 
-        return Excel::download(new GpmReportExport($period, $category), $filename);
+        $parts = ['Laporan_GPM'];
+        if ($period) {
+            $parts[] = $period;
+        }
+        if ($category) {
+            $parts[] = $category;
+        }
+        if ($itemId) {
+            $item = Item::find($itemId);
+            if ($item) {
+                $parts[] = $item->code;
+            }
+        }
+        if ($startDate && $endDate) {
+            $parts[] = "{$startDate}_sd_{$endDate}";
+        } elseif ($startDate) {
+            $parts[] = "dari_{$startDate}";
+        } elseif ($endDate) {
+            $parts[] = "sd_{$endDate}";
+        }
+        $filename = implode('_', $parts).'.xlsx';
+
+        return Excel::download(new GpmReportExport($period, $category, $startDate, $endDate, $itemId), $filename);
     }
 
     public function stock(Request $request): BinaryFileResponse

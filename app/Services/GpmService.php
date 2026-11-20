@@ -47,10 +47,17 @@ class GpmService
      *     gpm_percentage: float
      * }>
      */
-    public function calculateGpm(?string $period = null, ?string $category = null): Collection
-    {
+    public function calculateGpm(
+        ?string $period = null,
+        ?string $category = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?int $itemId = null
+    ): Collection {
         $period = $period !== null ? trim($period) : null;
         $category = $category !== null ? trim($category) : null;
+        $startDate = $startDate !== null ? trim($startDate) : null;
+        $endDate = $endDate !== null ? trim($endDate) : null;
 
         $query = DB::table('distribution_items')
             ->join('distribution_transactions', 'distribution_items.transaction_id', '=', 'distribution_transactions.id')
@@ -86,6 +93,30 @@ class GpmService
 
         if ($category !== null && $category !== '') {
             $query->where('item_categories.code', $category);
+        }
+
+        if ($itemId !== null && $itemId > 0) {
+            $query->where('distribution_items.item_id', $itemId);
+        }
+
+        if ($startDate !== null && $startDate !== '') {
+            $query->where(function ($q) use ($startDate) {
+                $q->where('distribution_transactions.pickup_time', '>=', $startDate.' 00:00:00')
+                    ->orWhere(function ($sub) use ($startDate) {
+                        $sub->whereNull('distribution_transactions.pickup_time')
+                            ->where('distribution_transactions.created_at', '>=', $startDate.' 00:00:00');
+                    });
+            });
+        }
+
+        if ($endDate !== null && $endDate !== '') {
+            $query->where(function ($q) use ($endDate) {
+                $q->where('distribution_transactions.pickup_time', '<=', $endDate.' 23:59:59')
+                    ->orWhere(function ($sub) use ($endDate) {
+                        $sub->whereNull('distribution_transactions.pickup_time')
+                            ->where('distribution_transactions.created_at', '<=', $endDate.' 23:59:59');
+                    });
+            });
         }
 
         return $query->get()->map(function (object $row): array {
@@ -126,9 +157,15 @@ class GpmService
      *     gpm_percentage: float
      * }>
      */
-    public function getGpmByCategory(?string $period = null, ?Collection $gpmData = null): Collection
-    {
-        $gpmData ??= $this->calculateGpm($period);
+    public function getGpmByCategory(
+        ?string $period = null,
+        ?Collection $gpmData = null,
+        ?string $category = null,
+        ?string $startDate = null,
+        ?string $endDate = null,
+        ?int $itemId = null
+    ): Collection {
+        $gpmData ??= $this->calculateGpm($period, $category, $startDate, $endDate, $itemId);
 
         return $gpmData->groupBy('category_name')->map(function (Collection $items, string $category): array {
             $totalQty = (int) $items->sum('qty_sold');

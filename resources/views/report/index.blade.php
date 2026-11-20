@@ -145,25 +145,65 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                 </div>
-                <h3 class="ml-4 text-lg font-semibold text-gray-900">GPM / Gross Profit</h3>
+                <div>
+                    <h3 class="ml-4 text-lg font-semibold text-gray-900">GPM / Gross Profit</h3>
+                    <p class="ml-4 text-xs text-gray-500">Gross profit & margin per item atau semua item</p>
+                </div>
             </div>
-            <p class="text-sm text-gray-500 mb-4">Gross profit per item with margin color coding.</p>
-            <form action="{{ route('report.gpm') }}" method="GET">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Period</label>
-                    <select name="period" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 sm:text-sm">
-                        <option value="">All</option>
-                        @foreach($periods as $p)
-                            <option value="{{ $p }}">{{ $p }}</option>
+            <form action="{{ route('report.gpm') }}" method="GET" class="space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Periode</label>
+                        <select name="period" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 text-xs">
+                            <option value="">Semua Periode</option>
+                            @foreach($periods as $p)
+                                <option value="{{ $p }}">{{ $p }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Kategori</label>
+                        <select name="category" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 text-xs">
+                            <option value="">Semua Kategori</option>
+                            @foreach($categories as $cat)
+                                <option value="{{ $cat->code }}">{{ $cat->label }} ({{ $cat->code }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Barang / Item (Opsional)</label>
+                    <select name="item_code" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 text-xs">
+                        <option value="">Semua Barang</option>
+                        @foreach($items as $code)
+                            <option value="{{ $code }}">{{ $code }}</option>
                         @endforeach
                     </select>
                 </div>
-                <button type="submit" class="w-full bg-primary-700 text-white hover:bg-primary-800 rounded-lg px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                    Download Excel
-                </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Dari Tanggal</label>
+                        <input type="date" name="start_date" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 text-xs">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Sampai Tanggal</label>
+                        <input type="date" name="end_date" class="block w-full border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-yellow-500 text-xs">
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="submit" class="flex-1 bg-primary-700 text-white hover:bg-primary-800 rounded-lg px-3 py-2 text-xs font-medium inline-flex items-center justify-center transition-colors">
+                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Download Excel
+                    </button>
+                    <a href="{{ route('report.gpm-cost') }}" class="px-3 py-2 border border-primary-500 text-primary-700 hover:bg-primary-50 rounded-lg text-xs font-medium inline-flex items-center justify-center transition-colors">
+                        Lihat Web &rarr;
+                    </a>
+                </div>
             </form>
         </div>
 

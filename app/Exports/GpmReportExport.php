@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Item;
 use App\Services\GpmService;
 use Illuminate\Support\Enumerable;
 use Maatwebsite\Excel\Concerns\Exportable;
@@ -30,7 +31,10 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
 
     public function __construct(
         private ?string $period = null,
-        private ?string $category = null
+        private ?string $category = null,
+        private ?string $startDate = null,
+        private ?string $endDate = null,
+        private ?int $itemId = null
     ) {}
 
     public function startCell(): string
@@ -40,7 +44,13 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
 
     public function collection(): Enumerable
     {
-        return app(GpmService::class)->calculateGpm($this->period, $this->category);
+        return app(GpmService::class)->calculateGpm(
+            $this->period,
+            $this->category,
+            $this->startDate,
+            $this->endDate,
+            $this->itemId
+        );
     }
 
     public function headings(): array
@@ -103,8 +113,21 @@ class GpmReportExport extends BaseExport implements FromCollection, WithCustomSt
         $this->setTitle($sheet, 'LAPORAN GPM / LABA KOTOR', $colCount);
 
         $filterParts = [$this->period ? 'Periode: '.$this->period : 'Semua Periode'];
+        if ($this->startDate && $this->endDate) {
+            $filterParts[] = 'Tanggal: '.$this->startDate.' s/d '.$this->endDate;
+        } elseif ($this->startDate) {
+            $filterParts[] = 'Tanggal Mulai: '.$this->startDate;
+        } elseif ($this->endDate) {
+            $filterParts[] = 'Tanggal Selesai: '.$this->endDate;
+        }
         if ($this->category) {
             $filterParts[] = 'Kategori: '.$this->category;
+        }
+        if ($this->itemId) {
+            $item = Item::find($this->itemId);
+            if ($item) {
+                $filterParts[] = 'Item: '.$item->name.' ('.$item->code.')';
+            }
         }
         $filterParts[] = 'Rumus: GPM = 100% - (Inventory Out HPP / Penjualan Bersih)';
         $this->setSubtitle($sheet, implode(' | ', $filterParts), $colCount);
